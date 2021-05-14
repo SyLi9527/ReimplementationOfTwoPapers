@@ -1,41 +1,36 @@
 # coding: utf-8
 
+# coding: utf-8
+from __future__ import print_function
+from __future__ import division
+
+
+
+import tensorflow as tf
 import numpy as np
 import pickle
 from collections import deque, Counter
-import json
-import time
-import numpy as np
-from python_utils import *
 
 
 class RnnParameterData(object):
-    def __init__(self, loc_emb_size=500, uid_emb_size=60, voc_emb_size=5, tim_emb_size=10, hidden_size=50,
-                 lr=1e-2, lr_step=3, lr_decay=0.1, dropout_p=0.5, L2=1e-3, clip=5.0, optim='Adam',
-                 history_mode='avg', attn_type='dot', epoch_max=20, rnn_type='LSTM', model_mode="simple",
-                 data_path='../data/', save_path='../myresults/', data_name='foursquare'):
+    def __init__(self, loc_emb_size=500, uid_emb_size=40, voc_emb_size=50, tim_emb_size=10, hidden_size=500,
+                 lr=1e-3, lr_step=3, lr_decay=0.1, dropout_p=0.5, L2=1e-5, clip=5.0, optim='Adam',
+                 history_mode='avg', attn_type='dot', epoch_max=30, rnn_type='LSTM', model_mode="simple",
+                 data_path='../data/', save_path='../results/', data_name='foursquare'):
         self.data_path = data_path
         self.save_path = save_path
         self.data_name = data_name
-        with open(self.data_path + self.data_name + '.pk', 'rb') as f:
-            # print(type(data))  dict
-            data = pickle.load(f, encoding='latin1')
-        with open('data.json', 'w') as fp:
-            json.dump(data, fp)
-        # print(data.keys())
-        # dict_keys(['data_filter', 'parameters',
-        # 'vid_lookup', 'vid_list', 'data_neural', 'uid_list'])
-        self.vid_list = data['vid_list']  # 10497
-        self.uid_list = data['uid_list']  # 886
+        data = pickle.load(
+            open(self.data_path + self.data_name + '.pk', 'rb'), encoding='latin1')
+        self.vid_list = data['vid_list']
+        self.uid_list = data['uid_list']
         self.data_neural = data['data_neural']
 
         self.tim_size = 48
         self.loc_size = len(self.vid_list)
-        # print("loc_size = %d" % self.loc_size)
         self.uid_size = len(self.uid_list)
-        # print("uid_size = %d" % self.uid_size)
-        self.loc_emb_size = loc_emb_size  # 50
-        self.tim_emb_size = tim_emb_size  # 5
+        self.loc_emb_size = loc_emb_size
+        self.tim_emb_size = tim_emb_size
         self.voc_emb_size = voc_emb_size
         self.uid_emb_size = uid_emb_size
         self.hidden_size = hidden_size
@@ -56,18 +51,13 @@ class RnnParameterData(object):
         self.model_mode = model_mode
 
 
-# data_neural: dict, each value in (key: value) pair is also a dict
 def generate_input_history(data_neural, mode, mode2=None, candidate=None):
     data_train = {}
     train_idx = {}
     if candidate is None:
-        # candidate: all 886 users  np.array  shape: [886,]
         candidate = data_neural.keys()
-
     for u in candidate:
-        # a session contains loc, time, ...
         sessions = data_neural[u]['sessions']
-        # aquire id which needs to be trained or tested, test:train = 1:5
         train_id = data_neural[u][mode]
         data_train[u] = {}
         for c, i in enumerate(train_id):
@@ -77,13 +67,14 @@ def generate_input_history(data_neural, mode, mode2=None, candidate=None):
             trace = {}
             loc_np = np.reshape(
                 np.array([s[0] for s in session[:-1]]), (len(session[:-1]), 1))
+            # print(loc_np.shape)
             tim_np = np.reshape(
                 np.array([s[1] for s in session[:-1]]), (len(session[:-1]), 1))
             # voc_np = np.reshape(np.array([s[2] for s in session[:-1]]), (len(session[:-1]), 27))
             target = np.array([s[0] for s in session[1:]])
             trace['loc'] = loc_np
             trace['target'] = target
-            trace['tim'] = tim_np
+            trace['tim'] =  tim_np
             # trace['voc'] = Variable(torch.LongTensor(voc_np))
 
             history = []
@@ -142,7 +133,6 @@ def generate_input_history(data_neural, mode, mode2=None, candidate=None):
 
             data_train[u][i] = trace
         train_idx[u] = train_id
-
     return data_train, train_idx
 
 
@@ -168,6 +158,7 @@ def generate_input_long_history2(data_neural, mode, candidate=None):
                                       for s in loc_tim]), (len(loc_tim), 1))
         tim_np = np.reshape(np.array([s[1]
                                       for s in loc_tim]), (len(loc_tim), 1))
+        # print(loc_np.shape)
         trace['loc'] = loc_np
         trace['tim'] = tim_np
         trace['target'] = target
@@ -219,10 +210,11 @@ def generate_input_long_history(data_neural, mode, candidate=None):
 
             history_loc = np.reshape(
                 np.array([s[0] for s in history]), (len(history), 1))
+            # print(history_loc.shape)
             history_tim = np.reshape(
                 np.array([s[1] for s in history]), (len(history), 1))
             trace['history_loc'] = history_loc
-            trace['history_tim'] = history_tim
+            trace['history_tim'] =  history_tim
             trace['history_count'] = history_count
 
             loc_tim = history
@@ -232,8 +224,8 @@ def generate_input_long_history(data_neural, mode, candidate=None):
             tim_np = np.reshape(
                 np.array([s[1] for s in loc_tim]), (len(loc_tim), 1))
             trace['loc'] = loc_np
-            trace['tim'] = tim_np
-            trace['target'] = target
+            trace['tim'] =  tim_np
+            trace['target'] =target
             data_train[u][i] = trace
         train_idx[u] = train_id
     return data_train, train_idx
@@ -306,216 +298,73 @@ def get_hint(target, scores, users_visited):
                 hint[2] += 1
     return hint, count
 
-
-def run_simple(data, run_idx, mode, lr, clip, model, optimizer, criterion, mode2=None):
+# optimizer, criterion, clip, lr
+def run_simple(data, run_idx, mode, mode2=None):
     """mode=train: return model, avg_loss
        mode=test: return avg_loss,avg_acc,users_rnn_acc"""
     run_queue = None
     if mode == 'train':
-        model.train(True)
         run_queue = generate_queue(run_idx, 'random', 'train')
     elif mode == 'test':
-        model.train(False)
         run_queue = generate_queue(run_idx, 'normal', 'test')
     total_loss = []
-    queue_len = len(run_queue)  # 886 tuples
-    # print(run_queue)
-    # print(queue_len)
-    users_acc = {}
-    for c in range(queue_len):
-        optimizer.zero_grad()
-        u, i = run_queue.popleft()
-        if u not in users_acc:
-            users_acc[u] = [0, 0]
-        loc = data[u][i]['loc']  # (xxx, 1)
-        # print(loc.shape)
-        tim = data[u][i]['tim']  # (xxx, 1) the same as loc
-        # print(tim.shape)
-        target = data[u][i]['target']  # (xxx) simliar to loc and tim
-        # print(target)
-        uid = [u]
-
-        if 'attn' in mode2:
-            history_loc = data[u][i]['history_loc']
-            history_tim = data[u][i]['history_tim']
-
-        if mode2 in ['simple', 'simple_long']:
-            scores = model(loc, tim)
-        elif mode2 == 'attn_avg_long_user':
-            history_count = data[u][i]['history_count']
-            target_len = target.data.size()[0]
-            scores = model(loc, tim, history_loc, history_tim,
-                           history_count, uid, target_len)
-        elif mode2 == 'attn_local_long':
-            target_len = target.data.size()[0]
-            scores = model(loc, tim, target_len)
-        # print(scores.shape)
-        # print(target.shape)
-        if scores.data.size()[0] > target.data.size()[0]:
-            scores = scores[-target.data.size()[0]:]
-        # print(scores)
-        loss = criterion(scores, target)
-        # print(loss)
-
-        if mode == 'train':
-            loss.backward()
-            # gradient clipping
-            try:
-                torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
-                for p in model.parameters():
-                    if p.requires_grad:
-                        p.data.add_(p.grad.data, alpha=-lr)
-            except:
-                pass
-            optimizer.step()
-        elif mode == 'test':
-            users_acc[u][0] += len(target)
-            acc = get_acc(target, scores)
-            users_acc[u][1] += acc[2]
-        total_loss.append(loss.data.cpu().numpy())
-
-    avg_loss = np.mean(total_loss, dtype=np.float64)
-    if mode == 'train':
-        return model, avg_loss
-    elif mode == 'test':
-        users_rnn_acc = {}
-        for u in users_acc:
-            tmp_acc = users_acc[u][1] / users_acc[u][0]
-            users_rnn_acc[u] = tmp_acc.tolist()[0]
-        avg_acc = np.mean([users_rnn_acc[x] for x in users_rnn_acc])
-        return avg_loss, avg_acc, users_rnn_acc
-
-
-def generate_input_list(mode, run_idx, data, model_mode):
-    run_queue = None
-    # x_list = list()
-    if mode == 'train':
-        # model.train(True)
-        run_queue = generate_queue(run_idx, 'random', 'train')
-    elif mode == 'test':
-        # model.train(False)
-        run_queue = generate_queue(run_idx, 'normal', 'test')
-
-    queue_len = len(run_queue)  # 886 tuples
-    # print(run_queue)
-    # print(queue_len)
-    users_acc = {}
-    loc, tim, target, uid, history_loc, history_tim, history_count, target_len = list(
-    ), list(), list(), list(), list(), list(), list(), list()
-    for c in range(queue_len):
-        # optimizer.zero_grad()
-        u, i = run_queue.popleft()
-        if u not in users_acc:
-            users_acc[u] = [0, 0]
-        loc.append(data[u][i]['loc'].flatten())  # (xxx, 1)
-        # print(data[u][i]['loc'].flatten().shape)
-        # print(loc.shape)
-        tim.append(data[u][i]['tim'].flatten())  # (xxx, 1) the same as loc
-        # print(tim.shape)
-        # (xxx) simliar to loc and tim
-        target.append(data[u][i]['target'])
-        target_len.append(data[u][i]['target'].shape[0])
-        # print(target)
-        uid.append(u)
-        # if 'attn' in model_mode:
-        #     history_loc = data[u][i]['history_loc']
-        #     history_tim = data[u][i]['history_tim']
-
-        # if model_mode in ['simple', 'simple_long']:
-        #     scores = model(loc, tim)
-        # elif model_mode == 'attn_avg_long_user':
-        #     history_count = data[u][i]['history_count']
-        #     target_len = target.data.size()[0]
-        #     scores = model(loc, tim, history_loc, history_tim,
-        #                    history_count, uid, target_len)
-        # elif model_mode == 'attn_local_long':
-        #     target_len = target.data.size()[0]
-        #     scores = model(loc, tim, target_len)
-        # if 'attn' in model_mode:
-
-        if model_mode == 'attn_avg_long_user':
-            history_loc.append(data[u][i]['history_loc'])
-            history_tim.append(data[u][i]['history_tim'])
-            history_count.append(data[u][i]['history_count'])
-
-    total_len = len(loc)
-
-    if model_mode in ['simple', 'simple_long']:
-        # x_list = [np.append(loc[i], tim[i]) for i in range(total_len)]
-        return loc, tim, target
-    elif model_mode == 'attn_avg_long_user':
-        return loc, tim, target, history_loc, history_tim, history_count, uid, target_len
-    else:
-        return loc, tim, target, target_len
-    # elif ...
-
-
-def run_simple_mod(data, run_idx, mode, lr, clip, model, optimizer, criterion, mode2=None):
-    """mode=train: return model, avg_loss
-       mode=test: return avg_loss,avg_acc,users_rnn_acc"""
-    run_queue = None
-    if mode == 'train':
-        # in this case shuffle the data
-        # run_queue [user, train_idx]
-        run_queue = generate_queue(run_idx, 'random', 'train')
-    elif mode == 'test':
-        run_queue = generate_queue(run_idx, 'normal', 'test')
-
     queue_len = len(run_queue)
 
     users_acc = {}
+    loc, target, tim, history_loc, history_tim, history_count = \
+        np.array([]), np.array([]), np.array([]), np.array([]), np.array([]), np.array([])
+    uid = list()
     for c in range(queue_len):
-        # optimizer.zero_grad()
         u, i = run_queue.popleft()
         if u not in users_acc:
             users_acc[u] = [0, 0]
-        loc = data[u][i]['loc']  # (xxx, 1)
+        loc = np.append(loc, data[u][i]['loc'])
+        # print(loc.shape)
+        tim = np.append(tim, data[u][i]['tim'])
+        target = np.append(target, data[u][i]['target'])
+        uid += [u]
 
-        tim = data[u][i]['tim']  # (xxx, 1) the same as loc
-        # print(tim.shape)
-        target = data[u][i]['target']  # (xxx) simliar to loc and tim
-        # print(target)
-        uid = [u]
-        losses = train_with_sgd(
-            model, loc, target, nepoch=20, evaluate_loss_after=1)
         if 'attn' in mode2:
-            history_loc = data[u][i]['history_loc']
-            history_tim = data[u][i]['history_tim']
+            history_loc = np.append(history_loc, data[u][i]['history_loc'])
+            history_tim = np.append(history_tim, data[u][i]['history_tim'])
 
-    #     if mode2 in ['simple', 'simple_long']:
-    #         scores = model(loc, tim)
-    #     elif mode2 == 'attn_avg_long_user':
-    #         history_count = data[u][i]['history_count']
-    #         target_len = target.data.size()[0]
-    #         scores = model(loc, tim, history_loc, history_tim,
-    #                        history_count, uid, target_len)
-    #     elif mode2 == 'attn_local_long':
-    #         target_len = target.data.size()[0]
-    #         scores = model(loc, tim, target_len)
-    #     # print(scores.shape)
-    #     # print(target.shape)
+
+        if mode2 == 'attn_avg_long_user':
+            history_count = np.append(history_count, data[u][i]['history_count'])
+            target_len = target.data.size()[0]
+
+            # scores = model(loc, tim, history_loc, history_tim,
+            #                history_count, uid, target_len)
+        elif mode2 == 'attn_local_long':
+            target_len = target.data.size()[0]
+            # scores = model(loc, tim, target_len)
+    if 'simple' in  mode2:
+        return loc, tim, target
+    elif mode2 == 'attn_local_long':
+        pass
+    elif mode2 == 'attn_avg_long_user':
+        pass
+
     #     if scores.data.size()[0] > target.data.size()[0]:
     #         scores = scores[-target.data.size()[0]:]
-    #     # print(scores)
     #     loss = criterion(scores, target)
-    #     # print(loss)
 
-        # if mode == 'train':
-        #     loss.backward()
-        #     # gradient clipping
-        #     try:
-        #         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
-        #         for p in model.parameters():
-        #             if p.requires_grad:
-        #                 p.data.add_(p.grad.data, alpha=-lr)
-        #     except:
-        #         pass
-        #     optimizer.step()
-        # elif mode == 'test':
-        #     users_acc[u][0] += len(target)
-        #     acc = get_acc(target, scores)
-        #     users_acc[u][1] += acc[2]
-        # total_loss.append(loss.data.cpu().numpy())
+    #     if mode == 'train':
+    #         loss.backward()
+    #         # gradient clipping
+    #         try:
+    #             torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+    #             for p in model.parameters():
+    #                 if p.requires_grad:
+    #                     p.data.add_(p.grad.data, alpha=-lr)
+    #         except:
+    #             pass
+    #         optimizer.step()
+    #     elif mode == 'test':
+    #         users_acc[u][0] += len(target)
+    #         acc = get_acc(target, scores)
+    #         users_acc[u][1] += acc[2]
+    #     total_loss.append(loss.data.cpu().numpy())
 
     # avg_loss = np.mean(total_loss, dtype=np.float64)
     # if mode == 'train':
@@ -528,6 +377,206 @@ def run_simple_mod(data, run_idx, mode, lr, clip, model, optimizer, criterion, m
     #     avg_acc = np.mean([users_rnn_acc[x] for x in users_rnn_acc])
     #     return avg_loss, avg_acc, users_rnn_acc
 
+
+def markov(parameters, candidate):
+    validation = {}
+    for u in candidate:
+        traces = parameters.data_neural[u]['sessions']
+        train_id = parameters.data_neural[u]['train']
+        test_id = parameters.data_neural[u]['test']
+        trace_train = []
+        for tr in train_id:
+            trace_train.append([t[0] for t in traces[tr]])
+        locations_train = []
+        for t in trace_train:
+            locations_train.extend(t)
+        trace_test = []
+        for tr in test_id:
+            trace_test.append([t[0] for t in traces[tr]])
+        locations_test = []
+        for t in trace_test:
+            locations_test.extend(t)
+        validation[u] = [locations_train, locations_test]
+    acc = 0
+    count = 0
+    user_acc = {}
+    for u in validation.keys():
+        topk = list(set(validation[u][0]))
+        transfer = np.zeros((len(topk), len(topk)))
+
+        # train
+        sessions = parameters.data_neural[u]['sessions']
+        train_id = parameters.data_neural[u]['train']
+        for i in train_id:
+            for j, s in enumerate(sessions[i][:-1]):
+                loc = s[0]
+                target = sessions[i][j + 1][0]
+                if loc in topk and target in topk:
+                    r = topk.index(loc)
+                    c = topk.index(target)
+                    transfer[r, c] += 1
+        for i in range(len(topk)):
+            tmp_sum = np.sum(transfer[i, :])
+            if tmp_sum > 0:
+                transfer[i, :] = transfer[i, :] / tmp_sum
+
+        # validation
+        user_count = 0
+        user_acc[u] = 0
+        test_id = parameters.data_neural[u]['test']
+        for i in test_id:
+            for j, s in enumerate(sessions[i][:-1]):
+                loc = s[0]
+                target = sessions[i][j + 1][0]
+                count += 1
+                user_count += 1
+                if loc in topk:
+                    pred = np.argmax(transfer[topk.index(loc), :])
+                    if pred >= len(topk) - 1:
+                        pred = np.random.randint(len(topk))
+
+                    pred2 = topk[pred]
+                    if pred2 == target:
+                        acc += 1
+                        user_acc[u] += 1
+        user_acc[u] = user_acc[u] / user_count
+    avg_acc = np.mean([user_acc[u] for u in user_acc])
+    return avg_acc, user_acc
+
+# def generate_input_list(mode, run_idx, data, model_mode):
+#     run_queue = None
+#     # x_list = list()
+#     if mode == 'train':
+#         # model.train(True)
+#         run_queue = generate_queue(run_idx, 'random', 'train')
+#     elif mode == 'test':
+#         # model.train(False)
+#         run_queue = generate_queue(run_idx, 'normal', 'test')
+
+#     queue_len = len(run_queue)  # 886 tuples
+#     # print(run_queue)
+#     # print(queue_len)
+#     users_acc = {}
+#     loc, tim, target, uid = np.array([]), np.array([]), np.array([]), list()
+#     for c in range(queue_len):
+#         # optimizer.zero_grad()
+#         u, i = run_queue.popleft()
+#         if u not in users_acc:
+#             users_acc[u] = [0, 0]
+#         loc = np.append(loc, data[u][i]['loc'])  # (xxx, 1)
+#         # print(data[u][i]['loc'].flatten().shape)
+#         # print(loc.shape)
+#         tim = np.append(data[u][i]['tim'])  # (xxx, 1) the same as loc
+#         # print(tim.shape)
+#         # (xxx) simliar to loc and tim
+#         target.appned(data[u][i]['target'])
+#         # print(target)
+#         uid.append([u])
+
+#     total_len = len(loc)
+
+#     if model_mode == 'simple':
+#         # x_list = [np.append(loc[i], tim[i]) for i in range(total_len)]
+#         return loc, tim, target
+#     # elif ...
+#     else:
+#         print('pass need to code further')
+#         return 0
+
+
+def run_simple_mod(data, run_idx, mode, mode2=None):
+    """mode=train: return model, avg_loss
+       mode=test: return avg_loss,avg_acc,users_rnn_acc"""
+    run_queue = None
+    if mode == 'train':
+        run_queue = generate_queue(run_idx, 'random', 'train')
+    elif mode == 'test':
+        run_queue = generate_queue(run_idx, 'normal', 'test')
+    total_loss = []
+    queue_len = len(run_queue)
+
+    users_acc = {}
+    loc, target, tim, history_loc, history_tim, history_count = \
+        [], [], [], [], [], []
+    uid = list()
+    target_len = []
+    for c in range(queue_len):
+        u, i = run_queue.popleft()
+        if u not in users_acc:
+            users_acc[u] = [0, 0]
+        loc.append(data[u][i]['loc'])
+        # print(loc.shape)
+        tim.append(data[u][i]['tim'])
+        target.append(data[u][i]['target'])
+        uid.append(np.array([u]))
+
+        if 'attn' in mode2:
+            history_loc.append(data[u][i]['history_loc'])
+            history_tim.append(data[u][i]['history_tim'])
+
+
+        if mode2 == 'attn_avg_long_user':
+            history_count.append(data[u][i]['history_count'])
+            target_len.append(np.array([data[u][i]['target'].shape[0]]))
+
+            # scores = model(loc, tim, history_loc, history_tim,
+            #                history_count, uid, target_len)
+        elif mode2 == 'attn_local_long':
+            target_len.append(np.array([data[u][i]['target'].shape[0]]))
+#             # scores = model(loc, tim, target_len)
+    if 'simple' in  mode2:
+        return loc, tim, target
+    elif mode2 == 'attn_local_long':
+        return loc, tim, target, target_len
+    elif mode2 == 'attn_avg_long_user':
+        return loc, tim, uid, target, history_loc, history_tim, history_count, target_len
+
+def run_simple_mod(data, run_idx, mode, mode2=None):
+    """mode=train: return model, avg_loss
+       mode=test: return avg_loss,avg_acc,users_rnn_acc"""
+    run_queue = None
+    if mode == 'train':
+        run_queue = generate_queue(run_idx, 'random', 'train')
+    elif mode == 'test':
+        run_queue = generate_queue(run_idx, 'normal', 'test')
+    total_loss = []
+    queue_len = len(run_queue)
+
+    users_acc = {}
+    loc, target, tim, history_loc, history_tim, history_count = \
+        [], [], [], [], [], []
+    uid = list()
+    target_len = []
+    for c in range(queue_len):
+        u, i = run_queue.popleft()
+        if u not in users_acc:
+            users_acc[u] = [0, 0]
+        loc.append(data[u][i]['loc'])
+        # print(loc.shape)
+        tim.append(data[u][i]['tim'])
+        target.append(data[u][i]['target'])
+        uid.append(np.array([u]))
+
+        if 'attn' in mode2:
+            history_loc.append(data[u][i]['history_loc'])
+            history_tim.append(data[u][i]['history_tim'])
+
+
+        if mode2 == 'attn_avg_long_user':
+            history_count.append(data[u][i]['history_count'])
+            target_len.append(np.array([data[u][i]['target'].shape[0]]))
+
+            # scores = model(loc, tim, history_loc, history_tim,
+            #                history_count, uid, target_len)
+        elif mode2 == 'attn_local_long':
+            target_len.append(np.array([data[u][i]['target'].shape[0]]))
+#             # scores = model(loc, tim, target_len)
+    if 'simple' in  mode2:
+        return loc, tim, target
+    elif mode2 == 'attn_local_long':
+        return loc, tim, target, target_len
+    elif mode2 == 'attn_avg_long_user':
+        return loc, tim, uid, target, history_loc, history_tim, history_count, target_len
 
 def markov(parameters, candidate):
     validation = {}
@@ -634,33 +683,3 @@ def train_simple(model, loc, tim, y_train, lr, validation):
     # For each training example...
 
     return loss, accuracy
-
-
-if __name__ == '__main__':
-    parameters = RnnParameterData()
-    candidate = parameters.data_neural.keys()
-    data_test, test_idx = generate_input_history(parameters.data_neural, 'test', mode2=parameters.history_mode,
-                                                 candidate=candidate)
-    loc, tim_t, target = generate_input_list(
-        'test', test_idx, data_test, model_mode='simple')
-    loc_t, target_t = loc[:], target[:]
-
-    # print(loc_t)
-    model1 = TrajPreSimple1(hidden_dim=parameters.hidden_size,
-                            loc_dim=parameters.loc_size, tim_dim=parameters.tim_size)
-
-    # model2 = RNNNumpy2(word_dim=parameters.loc_emb_size, hidden_dim=parameters.hidden_size,
-    #                    total_vocabulary_size=parameters.loc_size)
-    for _ in range(10):
-        model1, loss = train_simple(
-            model1, loc_t, tim_t, target_t, lr=parameters.lr, validation=False)
-        print("train_loss:{:.4f}".format(loss))
-        loss, accuracy = train_simple(
-            model1, loc_t, tim_t, target_t, lr=parameters.lr, validation=True)
-        print("valid_loss:{:.4f}  valid_accuracy:{:.4f}".format(
-            loss, accuracy))
-# model, loc, tim, y_train, lr, validation
-    # run_simple(data_test, test_idx, 'test', model, lr=1, clip=1,
-    #            optimizer=1, criterion=1, mode2=None)
-    # print()
-    # print(run_queue)

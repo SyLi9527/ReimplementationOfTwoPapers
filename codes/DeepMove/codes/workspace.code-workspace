@@ -1,0 +1,13 @@
+{
+  "folders": [
+	{
+		"path": ".."
+	},
+	{
+		"path": "."
+	}
+],
+  "settings": {
+    "python.pythonPath": "/Users/iphone13.5/opt/anaconda3/envs/tf/bin/python"
+  }
+}
