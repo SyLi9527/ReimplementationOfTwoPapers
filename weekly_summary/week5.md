@@ -60,11 +60,11 @@ getdata -> PLT -> Line 1...6 are useless in this dataset, and can be ignored. Po
 one person has a unique id and have many points -> calculate trajectory
   
 empiricalEntropyRate -> according to trajectory, calcultate empirical entropy loss -> get the number of maximum reachable place/ distinct place -> calculate failed_id according to the solution of the equation -> use successful ones tocalculate probabilty
-
+  
 My Result
-[Standrad Method](../codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/final_graphs/Heatmap_DL42.pdf)
-[Refined Method](../codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/final_graphs/Heatmap_RL42.pdf)
-[The difference](../codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/final_graphs/Heatmap_DL42mRL42.pdf)
+[Standrad Method](../codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/final_graphs/Heatmap_DL42.pdf)  
+[Refined Method](../codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/final_graphs/Heatmap_RL42.pdf)  
+[The difference](../codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/final_graphs/Heatmap_DL42mRL42.pdf)  
 Original Result
-![reduction](reduction.png)![two methods](two_method.png)
+![reduction](reduction.png)![two methods](two_method.png)  
 
