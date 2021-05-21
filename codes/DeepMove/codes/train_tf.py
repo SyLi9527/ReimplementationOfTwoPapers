@@ -1,5 +1,6 @@
 # coding: utf-8
 
+from inspect import Parameter
 import numpy as np
 import pickle
 from collections import deque, Counter
@@ -14,8 +15,8 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
 class RnnParameterData(object):
     def __init__(self, loc_emb_size=50, uid_emb_size=30, voc_emb_size=20, tim_emb_size=4, hidden_size=45,
-                 lr=1e-2, lr_step=3, min_lr = 1e-5, lr_decay=0.1, dropout_p=0.3, L2=1e-5, clip=0.3, optim='Adam',
-                 history_mode='max', attn_type='dot', epoch_max=30, rnn_type='RNN', model_mode="attn_avg_long_user",
+                 lr=5e-3, lr_step=2, min_lr = 1e-5, lr_decay=0.1, dropout_p=0.3, L2=1e-5, clip=0.3, optim='Adam',
+                 history_mode='max', attn_type='dot', epoch_max=30, rnn_type='RNN', model_mode='simple_long',
                  data_path='../data/', save_path='../myresults/', data_name='foursquare'):
         self.data_path = data_path
         self.save_path = save_path
@@ -281,7 +282,6 @@ def generate_input_long_history(data_neural, mode, candidate=None):
         train_idx[u] = train_id
     return data_train, train_idx
 
-
 def generate_queue(train_idx, mode, mode2):
     """return a deque. You must use it by train_queue.popleft()"""
     user = list(train_idx.keys())
@@ -301,14 +301,12 @@ def generate_queue(train_idx, mode, mode2):
                     train_queue.append((u, initial_queue[u].popleft()))
                 if j >= int(0.01 * len(user)):
                     break
-            queue_left = sum(
-                [1 for x in initial_queue if len(initial_queue[x]) > 0])
+            queue_left = sum([1 for x in initial_queue if len(initial_queue[x]) > 0])
     elif mode == 'normal':
         for u in user:
             for i in train_idx[u]:
                 train_queue.append((u, i))
     return train_queue
-
 
 def get_acc(target, scores):
     """target and scores are torch cuda Variable"""
@@ -407,6 +405,7 @@ def run_simple_mod(data, run_idx, mode, mode2=None):
     queue_len = len(run_queue)
 
     users_acc = {}
+    users = []
     loc, target, tim, history_loc, history_tim, history_count = \
         [], [], [], [], [], []
     uid = list()
@@ -415,6 +414,7 @@ def run_simple_mod(data, run_idx, mode, mode2=None):
         u, i = run_queue.popleft()
         if u not in users_acc:
             users_acc[u] = [0, 0]
+        users.append(u)
         loc.append(data[u][i]['loc'])
         # print(loc.shape)
         tim.append(data[u][i]['tim'])
@@ -427,7 +427,7 @@ def run_simple_mod(data, run_idx, mode, mode2=None):
 
 
         if mode2 == 'attn_avg_long_user':
-            history_count.append(data[u][i]['history_count'])
+            history_count.append(np.array(data[u][i]['history_count']))
             target_len.append(np.array([data[u][i]['target'].shape[0]]))
 
             # scores = model(loc, tim, history_loc, history_tim,
@@ -436,11 +436,11 @@ def run_simple_mod(data, run_idx, mode, mode2=None):
             target_len.append(np.array([data[u][i]['target'].shape[0]]))
 #             # scores = model(loc, tim, target_len)
     if 'simple' in  mode2:
-        return loc, tim, target
+        return  users_acc, users, loc, tim, target
     elif mode2 == 'attn_local_long':
-        return loc, tim, target, target_len
+        return  users_acc, users, loc, tim, target_len, target
     elif mode2 == 'attn_avg_long_user':
-        return loc, tim, uid, target, history_loc, history_tim, history_count, target_len
+        return  users_acc, users, loc, tim, uid, history_loc, history_tim, history_count, target_len, target
 
 
 def markov(parameters, candidate):
@@ -516,8 +516,19 @@ def generator_simple(inputs):
         tim_each = tim[i]
         target_each = target[i]
         yield [loc_each, tim_each], target_each
+def generator_simple_inputs(inputs):
+    loc, tim = inputs
+    loc_len = len(loc)
+    for i in range(loc_len):
+        loc_each = loc[i]
+        tim_each = tim[i]
+
+        yield [loc_each, tim_each]
+def generator_target(target):
+    for i in target:
+        yield i.reshape(-1, 1)
 def generator_attn_user(inputs):
-    loc, tim, uid, target, hloc, htim, hcount, target_len = inputs
+    loc, tim, uid, hloc, htim, hcount, target_len, target = inputs
     loc_len = len(loc)
     for i in range(loc_len):
         loc_each = loc[i]
@@ -528,10 +539,23 @@ def generator_attn_user(inputs):
         uid_each = uid[i].reshape(-1, 1)
         hloc_each = hloc[i]
         htim_each = htim[i]
-        hcount_each = np.array(hcount[i]).reshape(-1, 1)
+        hcount_each = hcount[i].reshape(-1, 1)
         yield [loc_each, tim_each, uid_each, hloc_each, htim_each, hcount_each, target_len_each], target_each
+def generator_attn_user_inputs(inputs):
+    loc, tim, uid, hloc, htim, hcount, target_len = inputs
+    loc_len = len(loc)
+    for i in range(loc_len):
+        loc_each = loc[i].reshape(1, -1)
+        tim_each = tim[i].reshape(1, -1)
+        target_len_each = target_len[i].reshape(1, -1)
+
+        uid_each = uid[i].reshape(1, -1)
+        hloc_each = hloc[i].reshape(1, -1)
+        htim_each = htim[i].reshape(1, -1)
+        hcount_each = hcount[i].reshape(1, -1)
+        yield [loc_each, tim_each, uid_each, hloc_each, htim_each, hcount_each, target_len_each]
 def generator_attn_long(inputs):
-    loc, tim, target, target_len = inputs
+    loc, tim, target_len, target = inputs
     loc_len = len(loc)
     for i in range(loc_len):
         loc_each = loc[i]
@@ -539,29 +563,108 @@ def generator_attn_long(inputs):
         target_len_each = target_len[i].reshape(-1, 1)
         target_each = target[i]
         yield [loc_each, tim_each, target_len_each], target_each
+def generator_attn_long_inputs(inputs):
+    loc, tim, target_len = inputs
+    loc_len = len(loc)
+    for i in range(loc_len):
+        loc_each = loc[i].reshape(1, -1)
+        tim_each = tim[i].reshape(1, -1)
+        target_len_each = target_len[i].reshape(1, -1)
 
-def whole_accuracy(target, pred):
-    return np.sum((target - pred.numpy()) == 0) / target.shape[0]
+        yield [loc_each, tim_each, target_len_each]
+def generator_test(inputs):
+    return [inputs[:-1]], inputs[-1]
+# def whole_accuracy(target, pred):
+#     return np.sum((target - pred.numpy()) == 0) / target.shape[0]
 
-def train_model(model, data, idx, model_mode, reduce_lr, Train, Back):
+def train_model(model, data, idx, model_mode, reduce_lr, Train):
     # We keep track of the losses so we can plot them later
     if Train:
         args = run_simple_mod(data, idx, 'train', model_mode)
     else:
         args = run_simple_mod(data, idx, 'test', model_mode)
-    if model_mode == 'attn_avg_long_user':
-        data_generator = generator_attn_user(args)
-    elif model_mode == 'attn_local_long':
-        data_generator = generator_attn_long(args)
-    else:
-        data_generator = generator_simple(args)
-    
+    # if model_mode == 'attn_avg_long_user':
+    #     data_generator = generator_attn_user(args[2:])
+    # elif model_mode == 'attn_local_long':
+    #     data_generator = generator_attn_long(args[2:])
+    # else:
+    #     data_generator = generator_simple(args[2:])
+
     if Train:
         # steps_per_epoch= 200
-        
-        history = model.fit(data_generator, epochs=1, callbacks=[reduce_lr, Back])
+        if model_mode == 'attn_avg_long_user':
+            data_generator = generator_attn_user(args[2:])
+        elif model_mode == 'attn_local_long':
+            data_generator = generator_attn_long(args[2:])
+        else:
+            data_generator = generator_simple(args[2:])
+
+        history = model.fit(data_generator, epochs=1, callbacks=[reduce_lr])
         return model, history.history
     else:
-        result = model.evaluate(data_generator)
+        scce = tf.keras.losses.SparseCategoricalCrossentropy()
+        if model_mode == 'attn_avg_long_user':
+            data_generator = generator_attn_user_inputs(args[2: -1])
+        elif model_mode == 'attn_local_long':
+            data_generator = generator_attn_long_inputs(args[2: -1])
+        else:
+            data_generator = generator_simple_inputs(args[2: -1])
+        data_target = generator_target(args[-1])
+        users_acc, users = args[0], args[1]
+        users_rnn_acc = {}
+        loss = []
+        lens_targets = [len(x) for x in args[-1]]
+        # max_index = lens_targets.index(max(lens_targets))
+        len_target = len(args[-1])
+        match = total = 0
+        out = model.predict(data_generator)
+        out = tf.nn.softmax(out, axis = 1)
+        tar = []
+        for i in range(len_target):
+            tar.extend(args[-1][i].tolist())
+        y_pred = np.argmax(out, axis = 1)
+        plt.figure("predict traj and real traj")
+        ax = plt.gca()
+        ax.set_xlabel('time steps')
+        ax.set_ylabel('position')
+        ax.set_yscale('log')
+        ax.scatter(np.arange(np.sum(lens_targets))[-2500:], tar[-2500:], c='blue', s=5, alpha=0.5, label="$real$")
+        ax.scatter(np.arange(np.sum(lens_targets))[-2500:], y_pred[-2500:], c='red', s=5, alpha=0.5, label="$predict$")
+        plt.legend()
+        plt.savefig('attn_avg_long_user')
 
-        return result
+        # ax.scatter(x_list, y_list, c='r', s=20, alpha=0.5)
+
+        # plt.show()
+
+        # for i in range(len_target):
+        #     # result = model.test_on_batch(next(data_generator), next(data_target))
+        #     out = model.predict_on_batch([item[i].reshape(1, -1) for item in args[2: -1]])
+        #     out = tf.nn.softmax(out, axis = 1)
+        #     # if i == max_index:
+        #     #     y_pred = np.argmax(out, axis = 1)
+        #     #     plt.figure("predict traj and real traj")
+        #     #     ax = plt.gca()
+        #     #     ax.set_xlabel('time steps')
+        #     #     ax.set_ylabel('position')
+        #     #     ax.set_yscale('log')
+        #     #     ax.scatter(np.arange(), y_list, c='blue', s=20, alpha=0.5)
+        #     #     plt.savefig("attn_local_long")
+        #     per_loss = scce(args[-1][i], out).numpy()
+        #     match = np.sum(args[-1][i] - np.argmax(out, axis = 1) == 0)
+        #     # total += args[-1][i].shape[0]
+        #     users_acc[users[i]][0] += lens_targets[i]
+        #     users_acc[users[i]][1] += match
+        #     loss.append(per_loss)
+
+        # for u in users_acc:
+        #     tmp_acc = users_acc[u][1] / users_acc[u][0]
+        #     users_rnn_acc[u] = tmp_acc
+        # avg_acc = np.mean([users_rnn_acc[x] for x in users_rnn_acc], dtype=np.float32)
+        # # avg_acc = np.float32(match / total)
+        # avg_loss = np.mean(loss, dtype=np.float32)
+        # # result = model.evaluate(data_generator)
+        # # avg_loss = result[1]
+        # # avg_acc = result[2]
+
+        # return avg_loss, avg_acc

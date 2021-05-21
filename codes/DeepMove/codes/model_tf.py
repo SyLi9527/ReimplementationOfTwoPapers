@@ -8,12 +8,13 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.callbacks import Callback, ReduceLROnPlateau
 import os
 import numpy as np
-
+from train_tf import generator_simple, train_model, RnnParameterData, generate_input_history, markov, \
+    generate_input_long_history, generate_input_long_history2, generator_attn_user
 
 # from tensorflow.python.framework.ops import disable_eager_execution
 # disable_eager_execution()
 
-from train_edit import run_simple, generate_input_history, run_simple_mod, \
+from train_tf import run_simple, generate_input_history, run_simple_mod, \
     generate_input_long_history, generate_input_long_history2
 from train_tf import RnnParameterData
 cpu = tf.config.experimental.list_physical_devices("CPU")
@@ -123,20 +124,41 @@ class TrajPreSimple(Model):
 
         self.dropout_input = Dropout(self.dropout_p, )
         self.dropout_output = Dropout(self.dropout_p, )
-        self.activation_layer = Dense(self.hidden_size, activation='relu')
-        self.fully_connnected_layer = Dense(self.loc_size, activation='softmax')
-        self.fc_attn = Dense(self.hidden_size, activation='tanh')
-
+        self.activation_layer = Dense(self.hidden_size, activation='relu', kernel_initializer='random_normal',
+    bias_initializer='zeros')
+        self.fully_connnected_layer = Dense(self.loc_size, activation='softmax', activity_regularizer=tf.keras.regularizers.l2(0.0001))
+        self.fc_attn = Dense(self.hidden_size, activation='tanh', activity_regularizer=tf.keras.regularizers.l2(0.0001), kernel_initializer='random_uniform',
+    bias_initializer='zeros')
+        
         if self.rnn_type == 'GRU':
             self.rnn = GRU(self.hidden_size)
         elif self.rnn_type == 'LSTM':
             self.rnn = LSTM(self.hidden_size)
         elif self.rnn_type == 'RNN':
             self.rnn = SimpleRNN(self.hidden_size)
+        # self.init_weights()
+    # def init_weights(self):
+    #     """
+    #     Here we reproduce Keras default initialization weights for consistency with Keras version
+    #     """
+    #     ih = (param.data for name, param in self.named_parameters()
+    #           if 'weight_ih' in name)
+    #     hh = (param.data for name, param in self.named_parameters()
+    #           if 'weight_hh' in name)
+    #     b = (param.data for name, param in self.named_parameters() if 'bias' in name)
+
+        # for t in ih:
+        #     tf.nn.init.xavier_uniform_(t)
+        # for t in hh:
+        #     tf.nn.init.orthogonal_(t)
+        # for t in b:
+        #     tf.nn.init.constant_(t, 0)
 
     def call(self, inputs):
         loc_input, tim_input = inputs
-        
+        loc_input = tf.reshape(loc_input, [-1, 1])
+        tim_input = tf.reshape(tim_input, [-1, 1])
+
         input_layer = concatenate([self.emb_loc(loc_input), self.emb_tim(tim_input)], axis=2)
         input = self.dropout_input(input_layer)
 
@@ -197,7 +219,16 @@ class TrajPreAttnAvgLongUser(Model):
     
     def call(self, inputs):
         loc, tim, uid, hloc, htim, hcount, target_len = inputs
-    
+
+        loc = tf.reshape(loc, [-1, 1])
+        tim = tf.reshape(tim, [-1, 1])
+        uid = tf.reshape(uid, [-1, 1])
+        hloc = tf.reshape(hloc, [-1, 1])
+        htim = tf.reshape(htim, [-1, 1])
+        hcount = tf.reshape(hcount, [-1, 1])
+        target_len = tf.reshape(target_len, [-1, 1])
+
+
         current_input = self.dropout_input(concatenate([self.emb_loc(loc), \
             self.emb_tim(tim)], axis=2))
         # add a layer here
@@ -242,6 +273,7 @@ class TrajPreAttnAvgLongUser(Model):
         out = self.dropout_output(out)
         score = self.fully_connnected_layer(out)
         # may need to truncate score to score[-target_len, ]
+        score = score[-int(target_len):, ]
         return score
         
 
@@ -318,6 +350,9 @@ class TrajPreLocalAttnLong(Model):
             self.rnn_decoder = LSTM(self.hidden_size)
     def call(self, inputs):
         loc, tim, target_len = inputs
+        loc = tf.reshape(loc, [-1, 1])
+        tim = tf.reshape(tim, [-1, 1])
+        target_len = tf.reshape(target_len, [-1, 1])
 
         current_input = self.dropout_input(concatenate([self.emb_loc(loc), \
             self.emb_tim(tim)], axis=2))
@@ -332,6 +367,7 @@ class TrajPreLocalAttnLong(Model):
         out = self.dropout_output(out)
         score = self.fully_connnected_layer(out)
         # may need to truncate score to score[-target_len, ]
+        score = score[-int(target_len):, ]
         return score
     
 
@@ -344,7 +380,7 @@ if __name__ == '__main__':
     # tim = np.array([2, 3, 4, 5]).reshape(4, 1)
 
     # target = np.array([0, 0, 0, 1])
-    model = TrajPreAttnAvgLongUser(parameters)
+    model = TrajPreSimple(parameters)
     
     
 
@@ -367,24 +403,23 @@ if __name__ == '__main__':
 # ])
     candidate = parameters.data_neural.keys()
     # change when change model_mode
-    data_train, train_idx = generate_input_long_history(parameters.data_neural, 'train', # mode2=parameters.history_mode,
+    data_train, train_idx = generate_input_long_history2(parameters.data_neural, 'train',
                                                        candidate=candidate)
-    data_test, test_idx = generate_input_long_history(parameters.data_neural, 'test', # mode2=parameters.history_mode,
+    data_test, test_idx = generate_input_long_history2(parameters.data_neural, 'test',
                                                        candidate=candidate)
     # loc_train, tim_train, target_train = run_simple_mod(data_train, train_idx, 'train', parameters.model_mode)
     # loc_test, tim_test, target_test = run_simple_mod(data_test, test_idx, 'test', parameters.model_mode)
-    loc_train, tim_train, uid_train, target_train, hloc_train, htim_train, hcount_train, len_train = run_simple_mod(data_train, train_idx, 'train', parameters.model_mode)
-    loc_test, tim_test, uid_test, target_test, hloc_test, htim_test, hcount_test, len_test = run_simple_mod(data_test, test_idx, 'test', parameters.model_mode)
+    args1 = run_simple_mod(data_train, train_idx, 'train', parameters.model_mode)
+    args2 = run_simple_mod(data_test, test_idx, 'test', parameters.model_mode)
     # loc_train, tim_train, target_train, len_train = run_simple_mod(data_train, train_idx, 'train', parameters.model_mode)
     # loc_test, tim_test, target_test, len_test =  run_simple_mod(data_test, test_idx, 'test', parameters.model_mode)
     for i in range(100):
 
         # model.predict(generator_attn_user(loc_train, tim_train, target_train))
-        reduce_lr = ReduceLROnPlateau(monitor= 'val_loss', factor=parameters.lr_decay,
+        reduce_lr = ReduceLROnPlateau(monitor= 'loss', factor=parameters.lr_decay,
                               patience=parameters.lr_step, min_lr=parameters.min_lr)
-    #     model.fit(generator_attn_user(loc_train, tim_train, uid_train, \
-    #         target_train, hloc_train, htim_train, hcount_train, len_train), steps_per_epoch= 200, epochs=1, callbacks=[reduce_lr])
-    # result = model.evaluate(generator_attn_user(loc_test, tim_test, uid_test, target_test, hloc_test, htim_test, hcount_test, len_test))
+        model.fit(generator_simple(args1), epochs=1)
+    result = model.evaluate(generator_simple(args2))
         # model.fit(generator_attn_long(loc_train, tim_train, \
         #     target_train, len_train), steps_per_epoch= 100,epochs=1)
         # result = model.evaluate(generator_attn_long(loc_test, tim_test, target_test,\
