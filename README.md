@@ -41,8 +41,13 @@
     ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_RL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42mRL42.png)
 
     My results
+    <div align=center>
+        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42.png"/>
+        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_RL42.png"/>
+        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42mRL42.png"/>
+    </div>
 
-    ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_RL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42mRL42.png)
+    <!-- ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_RL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42mRL42.png) -->
 
 
 
