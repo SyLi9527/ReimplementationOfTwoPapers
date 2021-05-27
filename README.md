@@ -38,6 +38,7 @@
     <img width = '400' height ='300' src ="./codes/DeepMove/results/attn_avg_long_user.png"/>
      <img width = '400' height ='300' src ="./codes/DeepMove/results/attn_local_long.png"/>
     </div>
+    
      You can find my results in [this folder](./codes/DeepMove/results).
 ----------------
 - ### MobilityUpperBoundPrediction
@@ -88,12 +89,7 @@
     It seems DeepMove doesn't have a very precise prediction.
 
     
-<style>
-table
-{
-    margin: auto;
-}
-</style>
+
 
 
 
