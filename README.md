@@ -29,16 +29,28 @@
 
      Besides, I also plot user 4's predicted and real trajactory under four different models using [matplotlib](https://matplotlib.org/).
 
-    ![1](./codes/DeepMove/results/simple.png) ![1](./codes/DeepMove/results/simple_long.png)
-    ![1](./codes/DeepMove/results/attn_avg_long_user.png) ![1](./codes/DeepMove/results/attn_local_long.png)
+    <div align=center>
+    <img width = '400' height ='300' src ="./codes/DeepMove/results/simple.png"/>
+     <img width = '400' height ='300' src ="./codes/DeepMove/results/simple_long.png"/>
+    </div>
 
+    <div align=center>
+    <img width = '400' height ='300' src ="./codes/DeepMove/results/attn_avg_long_user.png"/>
+     <img width = '400' height ='300' src ="./codes/DeepMove/results/attn_local_long.png"/>
+    </div>
      You can find my results in [this folder](./codes/DeepMove/results).
 ----------------
 - ### MobilityUpperBoundPrediction
 
     Original results
 
-    ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_RL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42mRL42.png)
+    <div align=center>
+        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42.png"/>
+        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_RL42.png"/>
+        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42mRL42.png"/>
+    </div>
+
+    <!-- ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_RL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42mRL42.png) -->
 
     My results
     <div align=center>
@@ -65,7 +77,7 @@
 
     Which means we may achieve better results for trajactory prediction if using another algorithm rather than DeepMove algorithm.
 
-    Then, I applied two datasets from DataGeolife , namely, spatial resolution 40.54$km^2$ with temporal resolution 0:05:00 (dataset1) and spatial resolution 618$m^2$ with temporal resolution 1:00:00 (dataset2) to DeepMove algorithm. Then I got the following table.
+    Then, I applied two datasets from DataGeolife , namely, spatial resolution 40.54km^2 with temporal resolution 0:05:00 (dataset1) and spatial resolution 618m^2 with temporal resolution 1:00:00 (dataset2) to DeepMove algorithm. Then I got the following table.
 
     ||dataset1|dataset2|
     |:---:|:---:|:---:|
@@ -76,7 +88,12 @@
     It seems DeepMove doesn't have a very precise prediction.
 
     
-
+<style>
+table
+{
+    margin: auto;
+}
+</style>
 
 
 
