@@ -39,7 +39,7 @@ The codes contain four network model (simple, simple_long, attn_avg_long_user, a
 - apsw 3.9.2.post1 # other versions can also work
 ## Structure
 already in MobilityPredictabilityUpperBounds dir
-- /ResultsLoP_replication # the dir save Heatmap.csv and Heatmap.pdf
+- /ResultsLoP_replication # the dir which saves Heatmap.csv and Heatmap.pdf
 - GeolifeEntropyCalc.py # calucate entropy and build Heatmap.csv
 - GeolifeSymbolisation.py # convert Geolife data to symbolized positions
 - Graphing.py # plot Heatmap
