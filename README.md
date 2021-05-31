@@ -1,99 +1,51 @@
-# ReimplementationOfTwoPapers. 
-## Overview
-- This repo aims to reimplement [Deepmove](https://github.com/vonfeng/DeepMove) and [MobilityUpperBoundPrediction](https://github.com/gavin-s-smith/MobilityPredictabilityUpperBounds) project using another framework or pure Python.
+# DeepMove
+## Requirements
+- python 3.8.5
+- tensorflow 2.4.1
+- numpy 1.19.5
+- json 2.0.9
+- pickle 4.0
+- matplotlib 3.4.2
+## Structure
+already in DeepMove dir
 
-- Weekly summary will be uploaded in [weekly_summary](./weekly_summary) folder.
+- /codes
+    - main_tf.py
+    - model_tf.py # define models
+    - train_tf.py # define tools for train the model
 
-    - [week1 summary](./weekly_summary/week1.md)
-    - [week2 summary](./weekly_summary/week2.md)
-    - [week3 summary](./weekly_summary/week3.md)
-    - [week4 summary](./weekly_summary/week4.md)
-    - [week5 summary](./weekly_summary/week5.md)
+- /data # preprocessed foursquare sample data (pickle file)
+- /results # the default save path when training the mode
+## Usage
+The codes contain four network model (simple, simple_long, attn_avg_long_user, attn_local_long) and a baseline model (Markov). The parameter settings for these model can refer to  [result.md](./result.md) file.
 
-- You can find the report [here](https://www.overleaf.com/2517778372tddfyvgyqwbd).
-## Results
-------------------------
-- ### Deepmove
-    I got these results from reimplemented tensorflow models as follows.  
-       
+- Train a new model:
 
-    |model_mode|L2|attn_type|clip|dropout|hidden_size|learning_rate|loc_size|rnn_type|tim_size|uid_size|original_acc|my_acc|
-    |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-    |markov|||||||||||0.082|0.082|
-    |simple|1.00E-06|dot|5|0.3|500|0.0001|500|LSTM|10|40|0.09587167|0.082337454|
-    |simple_long|1.00E-05|dot|5|0.5|200|0.0007|500|LSTM|10|40|0.117923069|0.082788173|
-    |attn_avg_long_user|1.00E-05|dot|5|0.2|300|0.0007|100|LSTM|10|40|0.133689175|0.135096371|
-    |attn_local_long|1.00E-06|dot|2|0.6|300|0.0001|300|LSTM|20|40|0.145342384|0.150585050|
+    `python3 main_tf.py --model_mode=attn_local_long --pretrain=0`
 
+    Other parameters (refer to main_tf.py):
 
-
-     Besides, I also plot user 4's predicted and real trajactory under four different models using [matplotlib](https://matplotlib.org/).
-
-    <div align=center>
-    <img width = '400' height ='300' src ="./codes/DeepMove/results/simple.png"/>
-     <img width = '400' height ='300' src ="./codes/DeepMove/results/simple_long.png"/>
-    </div>
-
-    <div align=center>
-    <img width = '400' height ='300' src ="./codes/DeepMove/results/attn_avg_long_user.png"/>
-     <img width = '400' height ='300' src ="./codes/DeepMove/results/attn_local_long.png"/>
-    </div>
-     You can find my results in [this folder](./codes/DeepMove/results).
-----------------
-- ### MobilityUpperBoundPrediction
-
-    Original results
-
-    <div align=center>
-        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42.png"/>
-        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_RL42.png"/>
-        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42mRL42.png"/>
-    </div>
-
-    <!-- ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_RL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/original_final_graphs/Heatmap_DL42mRL42.png) -->
-
-    My results
-    <div align=center>
-        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42.png"/>
-        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_RL42.png"/>
-        <img width = '339' height ='276' src ="./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42mRL42.png"/>
-    </div>
-
-    <!-- ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_RL42.png) ![1](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/my_final_graphs/Heatmap_DL42mRL42.png) -->
-
-
-
-    You can find more details in [this folder](./codes/MobilityPrediction/LoPpercom/ResultsLoP_replication/).
-
---------
-- ### Cross dataset test
-    First, I applied DeepMove dataset to MobPrediction algorithm, and got the following table.
-
-    ||training set + test set| training set| test set|
-    |:---:|:---:|:---:|:---:|
-    |number of failed personIDs|327|355|583
-    |possibility using DL method|0.4929|0.4857|0.4305
-    |possibility using RL method|0.3192|0.3307|0.4162
-
-    Which means we may achieve better results for trajactory prediction if using another algorithm rather than DeepMove algorithm.
-
-    Then, I applied two datasets from DataGeolife , namely, spatial resolution 40.54km^2 with temporal resolution 0:05:00 (dataset1) and spatial resolution 618m^2 with temporal resolution 1:00:00 (dataset2) to DeepMove algorithm. Then I got the following table.
-
-    ||dataset1|dataset2|
-    |:---:|:---:|:---:|
-    |possibility using DL method|0.9765|0.6201|
-    |possibility using RL method|0.9688|0.2726|
-    |possibility using DeepMove|0.7257|0.1013|
-
-    It seems DeepMove doesn't have a very precise prediction.
-
-    
-<style>
-table
-{
-    margin: auto;
-}
-</style>
-
-
-
+    - for training:
+        - learning_rate, lr_step, lr_decay, L2, clip, epoch_max, dropout_p
+    - model definition:
+        - loc_emb_size, uid_emb_size, tim_emb_size, hidden_size, rnn_type, attn_type
+        - history_mode: avg, avg, whole
+# MobilityPredictabilityUpperBounds
+## Requirements
+- python 3.8.5
+- numpy 1.20.2
+- scipy 1.6.3
+- healpy 1.14.0 # can't be installed on Windows OS
+- apsw 3.9.2.post1 # other versions can also work
+## Structure
+already in MobilityPredictabilityUpperBounds dir
+- /ResultsLoP_replication # the dir save Heatmap.csv and Heatmap.pdf
+- GeolifeEntropyCalc.py # calucate entropy and build Heatmap.csv
+- GeolifeSymbolisation.py # convert Geolife data to symbolized positions
+- Graphing.py # plot Heatmap
+- Utils.py  
+- ...
+## Usage
+- Pre-build the database cache files by running "python3 GeolifeSymbolisation.py". This will take a significant amount of time as it builds the trajectory database from downloaded Geolife data set and pre-computes all required trajectory quantisations. If this is not done then it will be done on first run of the main code.
+- Run "python3 GeolifeEntropyCalc.py". This computes the upper bounds for all spatiotemporal quantisations investigated in the paper and saves them to a CSV.
+- Run "python3 Graphing.py". This plots the results as heatmaps.

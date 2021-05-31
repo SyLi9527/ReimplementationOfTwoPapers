@@ -16,6 +16,7 @@ from tensorflow.keras.models import load_model
 from train_tf import RnnParameterData
 from json import encoder
 
+
 from model_tf import TrajPreSimple, TrajPreAttnAvgLongUser, TrajPreLocalAttnLong
 from train_tf import train_model, RnnParameterData, generate_input_history, markov, \
     generate_input_long_history, generate_input_long_history2
@@ -95,15 +96,14 @@ def run(args):
                                                        len([
                                                            y for x in train_idx for y in train_idx[x]]),
                                                        len([y for x in test_idx for y in test_idx[x]])))
-    # SAVE_PATH = args.save_path
-    # tmp_path = 'checkpoint/'
-    # os.makedirs(SAVE_PATH + tmp_path, exist_ok=True)
+   
     show_per_epoch = 1
     lr_last = lr = np.float32(parameters.lr)
     checkpoint_path = "training/cp-{epoch:04d}.ckpt"
     checkpoint_dir = os.path.dirname(checkpoint_path)
     temp_model_path = "training/" + parameters.model_mode + "/tp-{epoch:04d}"
-    model.load_weights(temp_model_path.format(epoch=7)).expect_partial()
+    # continue to train the model
+    #model.load_weights(temp_model_path.format(epoch=7)).expect_partial()
     model.compile(
             optimizer = Adam(
                 learning_rate=parameters.lr,
@@ -119,23 +119,15 @@ def run(args):
 
         if args.pretrain == 0:
             if lr < lr_last:
-            #    model.load_weights(temp_model_path.format(epoch=np.argmax(metrics['accuracy'])))
-                pass
-            # else:
-                # cp_callback = tf.keras.callbacks.ModelCheckpoint(
-                # filepath=checkpoint_path.format(epoch=epoch), 
-                # verbose=1, 
-                # save_weights_only=False)
-
-                # model = Checkpoint.restore(checkpoint_path.format(epoch=0)).expect_partial()
-                # model = load_model(temp_model_path.format(epoch=0), compile=False)
+                model.load_weights(temp_model_path.format(epoch=np.argmax(metrics['accuracy'])))
+                
             
-            # model, history = train_model(model, data_train, train_idx, parameters.model_mode, reduce_lr, Train=True)
-            # model.save_weights(temp_model_path.format(epoch=epoch))
+            model, history = train_model(model, data_train, train_idx, parameters.model_mode, reduce_lr, Train=True)
+            model.save_weights(temp_model_path.format(epoch=epoch))
 
             # loss', 'sparse_categorical_crossentropy', 'sparse_categorical_accuracy', 'lr
-            # print(history)
-            # lr_last, lr = lr, (history['lr'][0])
+           
+            lr_last, lr = lr, (history['lr'][0])
             if not (epoch % show_per_epoch):
                 result = train_model(model, data_test, test_idx, parameters.model_mode, reduce_lr, Train=False)
         print(result)
@@ -143,10 +135,9 @@ def run(args):
         metrics['train_loss'].extend(history['sparse_categorical_crossentropy'])
         metrics['valid_loss'].append(result[0])
         metrics['accuracy'].append(result[1])
-        # metrics['valid_acc'][epoch] = users_acc
-    # model.save('my_model/' + parameters.model_mode, save_format='tf')
+       
     model.save_weights('my_model/' + parameters.model_mode + '/final-{epoch:04d}'.format(epoch=np.argmax(metrics['accuracy'])))
-    save_name = 'res'
+    save_name = '_res'
     json.dump({'args': eval(str(argv)), 'metrics': eval(str(metrics))}, fp=open(
         args.save_path + parameters.model_mode + save_name + '.rs', 'w'), indent=4)
     metrics_view = {'train_loss': [], 'valid_loss': [], 'accuracy': []}
@@ -154,13 +145,19 @@ def run(args):
         metrics_view[key] = metrics[key]
     json.dump({'args': eval(str(argv)), 'metrics': eval(str(metrics_view))}, fp=open(
         args.save_path + parameters.model_mode + save_name + '.txt', 'w'), indent=4)
+
+    for rt, dirs, files in os.walk(checkpoint_dir):
+        for name in files:
+            remove_path = os.path.join(rt, name)
+            os.remove(remove_path)
+
+
     
 def load_pretrained_model(args):
     pass
 
 if __name__ == '__main__':
     np.random.seed(1)
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--loc_emb_size', type=int,
@@ -174,7 +171,7 @@ if __name__ == '__main__':
     parser.add_argument('--hidden_size', type=int, default=300)
     parser.add_argument('--dropout_p', type=float, default=0.6)
     parser.add_argument('--data_name', type=str, default='foursquare')
-    parser.add_argument('--learning_rate', type=float, default=0.00001)
+    parser.add_argument('--learning_rate', type=float, default=0.0007)
     parser.add_argument('--lr_step', type=int, default=1)
     parser.add_argument('--lr_decay', type=float, default=0.1)
     parser.add_argument('--optim', type=str, default='Adam',
@@ -191,7 +188,7 @@ if __name__ == '__main__':
                         choices=['general', 'concat', 'dot'])
     parser.add_argument('--data_path', type=str, default='../data/')
     parser.add_argument('--save_path', type=str, default='../results/')
-    parser.add_argument('--model_mode', type=str, default='attn_avg_long_user',
+    parser.add_argument('--model_mode', type=str, default='attn_local_long',
                         choices=['simple', 'simple_long', 'attn_avg_long_user', 'attn_local_long'])
     parser.add_argument('--pretrain', type=int, default=0)
     parser.add_argument('--min-lr', type=float, default=1e-5)
@@ -200,4 +197,4 @@ if __name__ == '__main__':
         args = load_pretrained_model(args)
 
     ours_acc = run(args)
-# 0.15156241
+    

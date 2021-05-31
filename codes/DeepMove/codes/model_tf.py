@@ -1,5 +1,3 @@
-from numpy.core.fromnumeric import repeat
-from numpy.core.numeric import outer
 import tensorflow as tf
 from tensorflow.keras import optimizers
 from tensorflow.keras.layers import *
@@ -8,17 +6,16 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.callbacks import Callback, ReduceLROnPlateau
 import os
 import numpy as np
+from numpy.core.fromnumeric import repeat
+from numpy.core.numeric import outer
 from train_tf import generator_simple, train_model, RnnParameterData, generate_input_history, markov, \
     generate_input_long_history, generate_input_long_history2, generator_attn_user
 
-# from tensorflow.python.framework.ops import disable_eager_execution
-# disable_eager_execution()
 
 from train_tf import run_simple, generate_input_history, run_simple_mod, \
     generate_input_long_history, generate_input_long_history2
 from train_tf import RnnParameterData
 cpu = tf.config.experimental.list_physical_devices("CPU")
-# tf.config.experimental.set_memory_growth(cpu[0], True)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 
@@ -208,14 +205,7 @@ class TrajPreAttnAvgLongUser(Model):
         elif self.rnn_type == 'RNN':
             self.rnn = SimpleRNN(self.hidden_size)
 
-        if self.model_mode == 'simple':
-            pass
-        elif self.model_mode == 'simple_long':
-            # need to extend
-            pass
-        else:
-            #need to exetnd
-            pass
+       
     
     def call(self, inputs):
         loc, tim, uid, hloc, htim, hcount, target_len = inputs

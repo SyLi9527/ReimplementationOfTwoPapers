@@ -1,6 +1,5 @@
 # coding: utf-8
 
-from inspect import Parameter
 import numpy as np
 import pickle
 from collections import deque, Counter
@@ -617,54 +616,55 @@ def train_model(model, data, idx, model_mode, reduce_lr, Train):
         # max_index = lens_targets.index(max(lens_targets))
         len_target = len(args[-1])
         match = total = 0
-        out = model.predict(data_generator)
-        out = tf.nn.softmax(out, axis = 1)
-        tar = []
-        for i in range(len_target):
-            tar.extend(args[-1][i].tolist())
-        y_pred = np.argmax(out, axis = 1)
-        plt.figure("predict traj and real traj")
-        ax = plt.gca()
-        ax.set_xlabel('time steps')
-        ax.set_ylabel('position')
-        ax.set_yscale('log')
-        ax.scatter(np.arange(np.sum(lens_targets))[-2500:], tar[-2500:], c='blue', s=5, alpha=0.5, label="$real$")
-        ax.scatter(np.arange(np.sum(lens_targets))[-2500:], y_pred[-2500:], c='red', s=5, alpha=0.5, label="$predict$")
-        plt.legend()
-        plt.savefig('attn_avg_long_user')
 
+
+        # plot trajectory
+        # out = model.predict(data_generator)
+        # out = tf.nn.softmax(out, axis = 1)
+        # tar = []
+        # for i in range(len_target):
+        #     tar.extend(args[-1][i].tolist())
+        # y_pred = np.argmax(out, axis = 1)
+        # plt.figure("predict traj and real traj")
+        # ax = plt.gca()
+        # ax.set_xlabel('time steps')
+        # ax.set_ylabel('position')
+        # ax.set_yscale('log')
+        # ax.scatter(np.arange(np.sum(lens_targets))[-2500:], tar[-2500:], c='blue', s=5, alpha=0.5, label="$real$")
+        # ax.scatter(np.arange(np.sum(lens_targets))[-2500:], y_pred[-2500:], c='red', s=5, alpha=0.5, label="$predict$")
+        # plt.legend()
+        # plt.savefig('attn_avg_long_user')
         # ax.scatter(x_list, y_list, c='r', s=20, alpha=0.5)
-
         # plt.show()
 
-        # for i in range(len_target):
-        #     # result = model.test_on_batch(next(data_generator), next(data_target))
-        #     out = model.predict_on_batch([item[i].reshape(1, -1) for item in args[2: -1]])
-        #     out = tf.nn.softmax(out, axis = 1)
-        #     # if i == max_index:
-        #     #     y_pred = np.argmax(out, axis = 1)
-        #     #     plt.figure("predict traj and real traj")
-        #     #     ax = plt.gca()
-        #     #     ax.set_xlabel('time steps')
-        #     #     ax.set_ylabel('position')
-        #     #     ax.set_yscale('log')
-        #     #     ax.scatter(np.arange(), y_list, c='blue', s=20, alpha=0.5)
-        #     #     plt.savefig("attn_local_long")
-        #     per_loss = scce(args[-1][i], out).numpy()
-        #     match = np.sum(args[-1][i] - np.argmax(out, axis = 1) == 0)
-        #     # total += args[-1][i].shape[0]
-        #     users_acc[users[i]][0] += lens_targets[i]
-        #     users_acc[users[i]][1] += match
-        #     loss.append(per_loss)
+        for i in range(len_target):
+            # result = model.test_on_batch(next(data_generator), next(data_target))
+            out = model.predict_on_batch([item[i].reshape(1, -1) for item in args[2: -1]])
+            out = tf.nn.softmax(out, axis = 1)
+            # if i == max_index:
+            #     y_pred = np.argmax(out, axis = 1)
+            #     plt.figure("predict traj and real traj")
+            #     ax = plt.gca()
+            #     ax.set_xlabel('time steps')
+            #     ax.set_ylabel('position')
+            #     ax.set_yscale('log')
+            #     ax.scatter(np.arange(), y_list, c='blue', s=20, alpha=0.5)
+            #     plt.savefig("attn_local_long")
+            per_loss = scce(args[-1][i], out).numpy()
+            match = np.sum(args[-1][i] - np.argmax(out, axis = 1) == 0)
+            # total += args[-1][i].shape[0]
+            users_acc[users[i]][0] += lens_targets[i]
+            users_acc[users[i]][1] += match
+            loss.append(per_loss)
 
-        # for u in users_acc:
-        #     tmp_acc = users_acc[u][1] / users_acc[u][0]
-        #     users_rnn_acc[u] = tmp_acc
-        # avg_acc = np.mean([users_rnn_acc[x] for x in users_rnn_acc], dtype=np.float32)
-        # # avg_acc = np.float32(match / total)
-        # avg_loss = np.mean(loss, dtype=np.float32)
-        # # result = model.evaluate(data_generator)
-        # # avg_loss = result[1]
-        # # avg_acc = result[2]
+        for u in users_acc:
+            tmp_acc = users_acc[u][1] / users_acc[u][0]
+            users_rnn_acc[u] = tmp_acc
+        avg_acc = np.mean([users_rnn_acc[x] for x in users_rnn_acc], dtype=np.float32)
+        # avg_acc = np.float32(match / total)
+        avg_loss = np.mean(loss, dtype=np.float32)
+        # result = model.evaluate(data_generator)
+        # avg_loss = result[1]
+        # avg_acc = result[2]
 
-        # return avg_loss, avg_acc
+        return avg_loss, avg_acc
