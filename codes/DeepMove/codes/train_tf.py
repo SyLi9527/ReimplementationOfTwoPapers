@@ -16,7 +16,7 @@ class RnnParameterData(object):
     def __init__(self, loc_emb_size=50, uid_emb_size=30, voc_emb_size=20, tim_emb_size=4, hidden_size=45,
                  lr=5e-3, lr_step=2, min_lr = 1e-5, lr_decay=0.1, dropout_p=0.3, L2=1e-5, clip=0.3, optim='Adam',
                  history_mode='max', attn_type='dot', epoch_max=30, rnn_type='RNN', model_mode='simple_long',
-                 data_path='../data/', save_path='../myresults/', data_name='foursquare'):
+                 data_path='../data/', save_path='../results/', data_name='foursquare', plot_user_traj=-1, use_geolife_data = False):
         self.data_path = data_path
         self.save_path = save_path
         self.data_name = data_name
@@ -25,7 +25,8 @@ class RnnParameterData(object):
         self.vid_list = data['vid_list']
         self.uid_list = data['uid_list']
         self.data_neural = data['data_neural']
-
+        self.plot_user_traj = plot_user_traj
+        self.use_geolife_data = use_geolife_data
         self.tim_size = 48
         self.loc_size = len(self.vid_list)
         self.uid_size = len(self.uid_list)
@@ -101,7 +102,56 @@ class Models(Layer):
         # self.tim_embbeding_layer = layers.embeddings(
         #     self.tim_size, self.tim_emb_size)
 
-        
+def preprocess_data(data_raw, candidate):
+    num = 0
+    s = 0
+    data = []
+    positon_dict = dict()
+    for user in range(42):
+    # for session in data_raw:
+        session = data_raw[user]
+        data_row = []
+        for position in session:
+
+            if position not in positon_dict:
+            
+                positon_dict[position] = num
+                num += 1
+            else:
+                pass
+            data_row.append(positon_dict[position])
+        data.append(data_row)
+    data = np.array(data)
+    print(num)
+
+    return data, num
+
+
+def generate_geolife_data(data, mode, candidate=None):
+    data_train = {}
+    train_idx = {}
+    trace = {}
+    if candidate is None:
+        candidate = list(range(data.shape[0]))
+    for u in candidate:
+        session = data[u][:int(0.7 * len(data[u]))] if mode == 'train' else data[u][int(0.7 * len(data[u])):]
+        idx = list(range(len(session)))
+        train_id = idx[: int(0.7 * len(idx))] if mode == 'train' else idx[int(0.7 * len(idx)):]
+        data_train[u] = {}
+        loc_np = np.reshape(
+                np.array(session[:-1]), (-1, 1))
+               
+        tim_np = np.reshape(   
+                np.array([int(i/6)%24 for i in range(len(session[:-1]))]), (-1, 1))
+        target = np.reshape(
+                np.array(session[1:]), (-1, 1))
+        trace['loc'] = loc_np
+        trace['target'] = target
+        trace['tim'] =  tim_np
+        data_train[u][0] = trace
+        train_idx[u] = train_id
+    return data_train, train_idx
+
 def generate_input_history(data_neural, mode, mode2=None, candidate=None):
     data_train = {}
     train_idx = {}
@@ -392,7 +442,7 @@ def run_simple(data, run_idx, mode, mode2=None):
         pass
     elif mode2 == 'attn_avg_long_user':
         pass
-def run_simple_mod(data, run_idx, mode, mode2=None):
+def run_simple_mod(data, run_idx, mode, use_geolife_data, mode2=None):
     """mode=train: return model, avg_loss
        mode=test: return avg_loss,avg_acc,users_rnn_acc"""
     run_queue = None
@@ -411,6 +461,8 @@ def run_simple_mod(data, run_idx, mode, mode2=None):
     target_len = []
     for c in range(queue_len):
         u, i = run_queue.popleft()
+        if use_geolife_data:
+            i = 0
         if u not in users_acc:
             users_acc[u] = [0, 0]
         users.append(u)
@@ -576,12 +628,15 @@ def generator_test(inputs):
 # def whole_accuracy(target, pred):
 #     return np.sum((target - pred.numpy()) == 0) / target.shape[0]
 
-def train_model(model, data, idx, model_mode, reduce_lr, Train):
+def train_model(model, data, idx, model_mode, reduce_lr, user, use_geolife_data, Train):
     # We keep track of the losses so we can plot them later
     if Train:
-        args = run_simple_mod(data, idx, 'train', model_mode)
+        args = run_simple_mod(data, idx, 'train', use_geolife_data, model_mode)
     else:
-        args = run_simple_mod(data, idx, 'test', model_mode)
+        if user == -1:
+            args = run_simple_mod(data, idx, 'test', use_geolife_data, model_mode)
+        else:
+            args = run_simple_mod(data, idx, 'train', use_geolife_data, model_mode)
     # if model_mode == 'attn_avg_long_user':
     #     data_generator = generator_attn_user(args[2:])
     # elif model_mode == 'attn_local_long':
@@ -617,54 +672,54 @@ def train_model(model, data, idx, model_mode, reduce_lr, Train):
         len_target = len(args[-1])
         match = total = 0
 
-
+        if -1 < user < 886:
         # plot trajectory
-        # out = model.predict(data_generator)
-        # out = tf.nn.softmax(out, axis = 1)
-        # tar = []
-        # for i in range(len_target):
-        #     tar.extend(args[-1][i].tolist())
-        # y_pred = np.argmax(out, axis = 1)
-        # plt.figure("predict traj and real traj")
-        # ax = plt.gca()
-        # ax.set_xlabel('time steps')
-        # ax.set_ylabel('position')
-        # ax.set_yscale('log')
-        # ax.scatter(np.arange(np.sum(lens_targets))[-2500:], tar[-2500:], c='blue', s=5, alpha=0.5, label="$real$")
-        # ax.scatter(np.arange(np.sum(lens_targets))[-2500:], y_pred[-2500:], c='red', s=5, alpha=0.5, label="$predict$")
-        # plt.legend()
-        # plt.savefig('attn_avg_long_user')
-        # ax.scatter(x_list, y_list, c='r', s=20, alpha=0.5)
-        # plt.show()
-
-        for i in range(len_target):
-            # result = model.test_on_batch(next(data_generator), next(data_target))
-            out = model.predict_on_batch([item[i].reshape(1, -1) for item in args[2: -1]])
+            out = model.predict(data_generator)
             out = tf.nn.softmax(out, axis = 1)
-            # if i == max_index:
-            #     y_pred = np.argmax(out, axis = 1)
-            #     plt.figure("predict traj and real traj")
-            #     ax = plt.gca()
-            #     ax.set_xlabel('time steps')
-            #     ax.set_ylabel('position')
-            #     ax.set_yscale('log')
-            #     ax.scatter(np.arange(), y_list, c='blue', s=20, alpha=0.5)
-            #     plt.savefig("attn_local_long")
-            per_loss = scce(args[-1][i], out).numpy()
-            match = np.sum(args[-1][i] - np.argmax(out, axis = 1) == 0)
-            # total += args[-1][i].shape[0]
-            users_acc[users[i]][0] += lens_targets[i]
-            users_acc[users[i]][1] += match
-            loss.append(per_loss)
+            tar = []
+            for i in range(len_target):
+                tar.extend(args[-1][i].tolist())
+            y_pred = np.argmax(out, axis = 1)
+            plt.figure("predict traj and real traj")
+            ax = plt.gca()
+            ax.set_xlabel('time steps')
+            ax.set_ylabel('position')
+            ax.set_yscale('log')
+            ax.scatter(np.arange(np.sum(lens_targets)), tar, c='blue', s=5, alpha=0.5, label="$real$")
+            ax.scatter(np.arange(np.sum(lens_targets)), y_pred, c='red', s=5, alpha=0.5, label="$predict$")
+            plt.legend()
+            plt.savefig(model_mode)
+            # ax.scatter(x_list, y_list, c='r', s=20, alpha=0.5)
+            # plt.show()
+        else:
+            for i in range(len_target):
+                # result = model.test_on_batch(next(data_generator), next(data_target))
+                out = model.predict_on_batch([item[i].reshape(1, -1) for item in args[2: -1]])
+                out = tf.nn.softmax(out, axis = 1)
+                # if i == max_index:
+                #     y_pred = np.argmax(out, axis = 1)
+                #     plt.figure("predict traj and real traj")
+                #     ax = plt.gca()
+                #     ax.set_xlabel('time steps')
+                #     ax.set_ylabel('position')
+                #     ax.set_yscale('log')
+                #     ax.scatter(np.arange(), y_list, c='blue', s=20, alpha=0.5)
+                #     plt.savefig("attn_local_long")
+                per_loss = scce(args[-1][i], out).numpy()
+                match = np.sum(args[-1][i] - np.argmax(out, axis = 1) == 0)
+                # total += args[-1][i].shape[0]
+                users_acc[users[i]][0] += lens_targets[i]
+                users_acc[users[i]][1] += match
+                loss.append(per_loss)
 
-        for u in users_acc:
-            tmp_acc = users_acc[u][1] / users_acc[u][0]
-            users_rnn_acc[u] = tmp_acc
-        avg_acc = np.mean([users_rnn_acc[x] for x in users_rnn_acc], dtype=np.float32)
-        # avg_acc = np.float32(match / total)
-        avg_loss = np.mean(loss, dtype=np.float32)
-        # result = model.evaluate(data_generator)
-        # avg_loss = result[1]
-        # avg_acc = result[2]
+            for u in users_acc:
+                tmp_acc = users_acc[u][1] / users_acc[u][0]
+                users_rnn_acc[u] = tmp_acc
+            avg_acc = np.mean([users_rnn_acc[x] for x in users_rnn_acc], dtype=np.float32)
+            # avg_acc = np.float32(match / total)
+            avg_loss = np.mean(loss, dtype=np.float32)
+            # result = model.evaluate(data_generator)
+            # avg_loss = result[1]
+            # avg_acc = result[2]
 
-        return avg_loss, avg_acc
+            return avg_loss, avg_acc

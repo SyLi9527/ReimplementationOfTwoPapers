@@ -34,6 +34,8 @@ from Utils import ensure_dir
 from GenericLoP import empiricalEntropyRate
 import GeolifeSymbolisation
 from ParLop import rtn
+import argparse
+import pickle
 
 
 def parse_timedelta(time_str):
@@ -90,7 +92,107 @@ def save_results(file_name, LoP, DL_RL):
         f.close()
 
 
-def run(group="All", scale=None, output_dir='./ResultsLoP_replication/final_graphs', bulk_build_preprocessing=False):
+def generate_input_history(data_neural, mode, mode2=None, candidate=None):
+    data_train = {}
+    train_idx = {}
+    if candidate is None:
+        candidate = data_neural.keys()
+    for u in candidate:
+        sessions = data_neural[u]['sessions']
+        train_id = data_neural[u][mode]
+        data_train[u] = {}
+        trace = []
+        for c, i in enumerate(train_id):
+            if mode == 'train' and c == 0:
+                continue
+            session = sessions[i]
+
+            # loc_np = np.reshape(
+            #     np.array([s[0] for s in session[:-1]]), (len(session[:-1]), 1))
+            # print(loc_np.shape)
+            # tim_np = np.reshape(
+            #     np.array([s[1] for s in session[:-1]]), (len(session[:-1]), 1))
+            # voc_np = np.reshape(np.array([s[2] for s in session[:-1]]), (len(session[:-1]), 27))
+            target = np.array([s[0] for s in session[:]])
+            # trace['loc'] = loc_np
+            trace.extend(target)
+            # trace['tim'] =  tim_np
+            # trace['voc'] = Variable(torch.LongTensor(voc_np))
+
+            # history = []
+            # if mode == 'test':
+            #     test_id = data_neural[u]['train']
+            #     for tt in test_id:
+            #         history.extend([(s[0], s[1]) for s in sessions[tt]])
+            # for j in range(c):
+            #     history.extend([(s[0], s[1]) for s in sessions[train_id[j]]])
+            # history = sorted(history, key=lambda x: x[1], reverse=False)
+
+            # merge traces with same time stamp
+            # if mode2 == 'max':
+            #     history_tmp = {}
+            #     for tr in history:
+            #         if tr[1] not in history_tmp:
+            #             history_tmp[tr[1]] = [tr[0]]
+            #         else:
+            #             history_tmp[tr[1]].append(tr[0])
+            #     history_filter = []
+            #     for t in history_tmp:
+            #         if len(history_tmp[t]) == 1:
+            #             history_filter.append((history_tmp[t][0], t))
+            #         else:
+            #             tmp = Counter(history_tmp[t]).most_common()
+            #             if tmp[0][1] > 1:
+            #                 history_filter.append((history_tmp[t][0], t))
+            #             else:
+            #                 ti = np.random.randint(len(tmp))
+            #                 history_filter.append((tmp[ti][0], t))
+            #     history = history_filter
+            #     history = sorted(history, key=lambda x: x[1], reverse=False)
+            # elif mode2 == 'avg':
+            #     history_tim = [t[1] for t in history]
+            #     history_count = [1]
+            #     last_t = history_tim[0]
+            #     count = 1
+            #     for t in history_tim[1:]:
+            #         if t == last_t:
+            #             count += 1
+            #         else:
+            #             history_count[-1] = count
+            #             history_count.append(1)
+            #             last_t = t
+            #             count = 1
+            # ################
+
+            # history_loc = np.reshape(
+            #     np.array([s[0] for s in history]), (len(history), 1))
+            # history_tim = np.reshape(
+            #     np.array([s[1] for s in history]), (len(history), 1))
+            # trace['history_loc'] = history_loc
+            # trace['history_tim'] = history_tim
+            # if mode2 == 'avg':
+            #     trace['history_count'] = history_count
+
+            data_train[u] = trace
+        train_idx[u] = train_id
+    return data_train, train_idx
+
+
+def load_deepmove_dataset():
+    data = pickle.load(
+        open('foursquare.pk', 'rb'), encoding='latin1')
+    data_neural = data['data_neural']
+    candidate = list(data_neural.keys())
+    data_train, train_idx = generate_input_history(data_neural, 'train', mode2='max',
+                                                   candidate=candidate)
+    data_mod = []
+    for u in data_train:
+        data_mod.append(data_train[u])
+    data_mod = np.array(data_mod)
+    return data_mod, candidate
+
+
+def run(use_deepmove_dataset, group="All", scale=None, output_dir='./ResultsLoP_replication/final_graphs', bulk_build_preprocessing=False):
     """
     Generates a single heatmap for a given list of Geolife ids, for a given method of computing the upper bound on
     the upper limit of predictability.
@@ -101,119 +203,193 @@ def run(group="All", scale=None, output_dir='./ResultsLoP_replication/final_grap
     :type scale: Float array
     """
     t = time.time()
+    if use_deepmove_dataset == True:
+        print("HHHHHHHHHHHH")
+        failed_ids = set()
+        LoP_RL = [[]]
+        LoP_DL = [[]]
+        LoP_failed_ct = [[]]
+        passed_norm_test = [[]]
+        file_name = "{}Heatmap_{}".format(output_dir, 'deepMove')
+        ensure_dir(file_name)
 
+        # Compute data
+
+        # ---------------------------------------------
+        # Load data from an existing preproc database, this will have been created
+        # earlier if it did not exist.
+        data, person_ids = load_deepmove_dataset()
+        # ---------------------------------------------
+
+        S_RL, N_RL = empiricalEntropyRate(data, 'RL')
+        S_DL, N_DL = empiricalEntropyRate(data, 'DL')
+
+        # Save the average:
+
+        tmpG_RL = rtn(S_RL, N_RL)
+        tmpG_DL = rtn(S_DL, N_DL)
+
+        # -88 real fail in solve
+        # -99 known fail in solve when S > log2(N)
+        # See the Matlab script (ParLoP.m) for more details
+
+        if (np.asarray(tmpG_RL) == -88).any():
+            raise Exception(
+                "ERROR: (RL) Matlab failed the solve, but the entropy was in the correct range. Therefore an unknown error has occured.")
+
+        if (np.asarray(tmpG_DL) == -88).any():
+            raise Exception(
+                "ERROR: (DL) Matlab failed the solve, but the entropy was in the correct range. Therefore an unknown error has occured.")
+
+        # Replace known solve fails. These are the cases when an entropy is found that is to high.
+        # This means the LZ entropy rate estimate is wrong (the estimator has failed to converge)
+        # There is no way to correct this, without collecting more data from the individual.
+        # While excluding the individual is not ideal it is better than including a value that is
+        # *known* to be erroneous. Therefore we discard the individual.
+        tmpG_RL = np.asarray(tmpG_RL)
+        tmpG_DL = np.asarray(tmpG_DL)
+
+        tmpG_RL_known_fail_mask = tmpG_RL < -1
+        tmpG_DL_known_fail_mask = tmpG_DL < -1
+
+        # To be comparable we must arrive at a consistent set of individuals from which to compare both
+        # methods.
+        tmpG_known_fail_mask = np.asarray(
+            tmpG_RL_known_fail_mask) | np.asarray(tmpG_DL_known_fail_mask)
+
+        # print tmpG_known_fail_mask
+
+        failed_ct = len(tmpG_RL[tmpG_known_fail_mask])
+
+        for p in np.asarray(person_ids)[tmpG_known_fail_mask]:
+            failed_ids.add(p)
+
+        # Filter out known solve fails.
+        tmpG_RL = list(np.asarray(tmpG_RL)[~tmpG_known_fail_mask])
+        tmpG_DL = list(np.asarray(tmpG_DL)[~tmpG_known_fail_mask])
+
+        if not len(tmpG_RL) == len(tmpG_DL):
+            raise Exception("SHOULD NOT OCCUR 5g4dfg65")
+
+        if (np.asarray(tmpG_RL) < 0).any():
+            raise Exception("ERROR. lsdkfal")
+
+        LoP_RL[-1].append(np.average(tmpG_RL))
+        LoP_DL[-1].append(np.average(tmpG_DL))
+        LoP_failed_ct[-1].append(failed_ct)
     # Group setting
-    if(group == "All"):
-        suffix = "All"
-        persons = "All"
     else:
-        suffix = "Grp{}".format(group[0])
-        persons = group[1]
+        if(group == "All"):
+            suffix = "All"
+            persons = "All"
+        else:
+            suffix = "Grp{}".format(group[0])
+            persons = group[1]
 
-    if not output_dir[-1] == '/':
-        output_dir = output_dir + '/'
+        if not output_dir[-1] == '/':
+            output_dir = output_dir + '/'
 
-    file_name = "{}Heatmap_{}".format(output_dir, suffix)
+        file_name = "{}Heatmap_{}".format(output_dir, suffix)
 
-    ensure_dir(file_name)
+        ensure_dir(file_name)
 
-    print("Calculing the LoP for {}".format(suffix))
+        print("Calculing the LoP for {}".format(suffix))
 
-    if bulk_build_preprocessing:
-        # will attempt to bulk build the cache using multiple CPU cores
-        # will skip caches if already built.
-        # if this option is not specified and a cache does not exist
-        # it will be built when required, using a single CPU core.
-        GeolifeSymbolisation.bulk_build_resolution_cache(
-            listSpatialRes, listTemporalRes)
+        if bulk_build_preprocessing:
+            # will attempt to bulk build the cache using multiple CPU cores
+            # will skip caches if already built.
+            # if this option is not specified and a cache does not exist
+            # it will be built when required, using a single CPU core.
+            GeolifeSymbolisation.bulk_build_resolution_cache(
+                listSpatialRes, listTemporalRes)
 
-    # mlab.openPool()
-    # open pools for accelerating computing
-    print("HHHHHHHHHHHH")
-    failed_ids = set()
-    LoP_RL = []
-    LoP_DL = []
-    LoP_failed_ct = []
-    passed_norm_test = []
-    for spatialRes in listSpatialRes:
-        LoP_RL.append([])
-        LoP_DL.append([])
-        LoP_failed_ct.append([])
-        passed_norm_test.append([])
-        for temporalRes in listTemporalRes:
+        # mlab.openPool()
+        # open pools for accelerating computing
+        print("HHHHHHHHHHHH")
+        failed_ids = set()
+        LoP_RL = []
+        LoP_DL = []
+        LoP_failed_ct = []
+        passed_norm_test = []
+        for spatialRes in listSpatialRes:
+            LoP_RL.append([])
+            LoP_DL.append([])
+            LoP_failed_ct.append([])
+            passed_norm_test.append([])
+            for temporalRes in listTemporalRes:
 
-            # Compute data
+                # Compute data
 
-            # ---------------------------------------------
-            # Load data from an existing preproc database, this will have been created
-            # earlier if it did not exist.
-            data, person_ids = get_geolife_data(
-                spatialRes, temporalRes, persons)
-            # ---------------------------------------------
+                # ---------------------------------------------
+                # Load data from an existing preproc database, this will have been created
+                # earlier if it did not exist.
+                data, person_ids = get_geolife_data(
+                    spatialRes, temporalRes, persons)
+                # ---------------------------------------------
 
-            # Sanity check on loading
-            for person in data:
-                if len(person) == 0:
+                # Sanity check on loading
+                for person in data:
+                    if len(person) == 0:
+                        raise Exception(
+                            "One or more person's trajectory was not loaded/created correctly.")
+                # End sanity check
+
+                S_RL, N_RL = empiricalEntropyRate(data, 'RL')
+                S_DL, N_DL = empiricalEntropyRate(data, 'DL')
+
+                # Save the average:
+
+                tmpG_RL = rtn(S_RL, N_RL)
+                tmpG_DL = rtn(S_DL, N_DL)
+
+                # -88 real fail in solve
+                # -99 known fail in solve when S > log2(N)
+                # See the Matlab script (ParLoP.m) for more details
+
+                if (np.asarray(tmpG_RL) == -88).any():
                     raise Exception(
-                        "One or more person's trajectory was not loaded/created correctly.")
-            # End sanity check
+                        "ERROR: (RL) Matlab failed the solve, but the entropy was in the correct range. Therefore an unknown error has occured.")
 
-            S_RL, N_RL = empiricalEntropyRate(data, 'RL')
-            S_DL, N_DL = empiricalEntropyRate(data, 'DL')
+                if (np.asarray(tmpG_DL) == -88).any():
+                    raise Exception(
+                        "ERROR: (DL) Matlab failed the solve, but the entropy was in the correct range. Therefore an unknown error has occured.")
 
-            # Save the average:
+                # Replace known solve fails. These are the cases when an entropy is found that is to high.
+                # This means the LZ entropy rate estimate is wrong (the estimator has failed to converge)
+                # There is no way to correct this, without collecting more data from the individual.
+                # While excluding the individual is not ideal it is better than including a value that is
+                # *known* to be erroneous. Therefore we discard the individual.
+                tmpG_RL = np.asarray(tmpG_RL)
+                tmpG_DL = np.asarray(tmpG_DL)
 
-            tmpG_RL = rtn(S_RL, N_RL)
-            tmpG_DL = rtn(S_DL, N_DL)
+                tmpG_RL_known_fail_mask = tmpG_RL < -1
+                tmpG_DL_known_fail_mask = tmpG_DL < -1
 
-            # -88 real fail in solve
-            # -99 known fail in solve when S > log2(N)
-            # See the Matlab script (ParLoP.m) for more details
+                # To be comparable we must arrive at a consistent set of individuals from which to compare both
+                # methods.
+                tmpG_known_fail_mask = np.asarray(
+                    tmpG_RL_known_fail_mask) | np.asarray(tmpG_DL_known_fail_mask)
 
-            if (np.asarray(tmpG_RL) == -88).any():
-                raise Exception(
-                    "ERROR: (RL) Matlab failed the solve, but the entropy was in the correct range. Therefore an unknown error has occured.")
+                # print tmpG_known_fail_mask
 
-            if (np.asarray(tmpG_DL) == -88).any():
-                raise Exception(
-                    "ERROR: (DL) Matlab failed the solve, but the entropy was in the correct range. Therefore an unknown error has occured.")
+                failed_ct = len(tmpG_RL[tmpG_known_fail_mask])
 
-            # Replace known solve fails. These are the cases when an entropy is found that is to high.
-            # This means the LZ entropy rate estimate is wrong (the estimator has failed to converge)
-            # There is no way to correct this, without collecting more data from the individual.
-            # While excluding the individual is not ideal it is better than including a value that is
-            # *known* to be erroneous. Therefore we discard the individual.
-            tmpG_RL = np.asarray(tmpG_RL)
-            tmpG_DL = np.asarray(tmpG_DL)
+                for p in np.asarray(person_ids)[tmpG_known_fail_mask]:
+                    failed_ids.add(p)
 
-            tmpG_RL_known_fail_mask = tmpG_RL < -1
-            tmpG_DL_known_fail_mask = tmpG_DL < -1
+                # Filter out known solve fails.
+                tmpG_RL = list(np.asarray(tmpG_RL)[~tmpG_known_fail_mask])
+                tmpG_DL = list(np.asarray(tmpG_DL)[~tmpG_known_fail_mask])
 
-            # To be comparable we must arrive at a consistent set of individuals from which to compare both
-            # methods.
-            tmpG_known_fail_mask = np.asarray(
-                tmpG_RL_known_fail_mask) | np.asarray(tmpG_DL_known_fail_mask)
+                if not len(tmpG_RL) == len(tmpG_DL):
+                    raise Exception("SHOULD NOT OCCUR 5g4dfg65")
 
-            # print tmpG_known_fail_mask
+                if (np.asarray(tmpG_RL) < 0).any():
+                    raise Exception("ERROR. lsdkfal")
 
-            failed_ct = len(tmpG_RL[tmpG_known_fail_mask])
-
-            for p in np.asarray(person_ids)[tmpG_known_fail_mask]:
-                failed_ids.add(p)
-
-            # Filter out known solve fails.
-            tmpG_RL = list(np.asarray(tmpG_RL)[~tmpG_known_fail_mask])
-            tmpG_DL = list(np.asarray(tmpG_DL)[~tmpG_known_fail_mask])
-
-            if not len(tmpG_RL) == len(tmpG_DL):
-                raise Exception("SHOULD NOT OCCUR 5g4dfg65")
-
-            if (np.asarray(tmpG_RL) < 0).any():
-                raise Exception("ERROR. lsdkfal")
-
-            LoP_RL[-1].append(np.average(tmpG_RL))
-            LoP_DL[-1].append(np.average(tmpG_DL))
-            LoP_failed_ct[-1].append(failed_ct)
+                LoP_RL[-1].append(np.average(tmpG_RL))
+                LoP_DL[-1].append(np.average(tmpG_DL))
+                LoP_failed_ct[-1].append(failed_ct)
 
     # mlab.closePool()
 
@@ -248,5 +424,9 @@ if __name__ == '__main__':
     # due to the IDs subsequently not being in the cache. If you would like to bulk build with a different ID set, change the
     # personIds list hardcoded in GeolifeSymbolisation.py::buildPreprocessingTable
     # scale controls the output headmap colour axis
-    run(useable_ids, scale=[0.05, 1, 0.05],
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--use_deepmove_dataset', type=bool, default=True)
+    # parser.add_argument('--model_mode', type=bool, default=True)
+    args = parser.parse_args()
+    run(args.use_deepmove_dataset, useable_ids, scale=[0.05, 1, 0.05],
         output_dir=output_dir, bulk_build_preprocessing=True)

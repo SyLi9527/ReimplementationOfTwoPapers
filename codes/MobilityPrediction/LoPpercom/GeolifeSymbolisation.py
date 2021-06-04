@@ -27,7 +27,9 @@ from Utils import ensure_dir
 import os
 from multiprocessing import Pool, cpu_count
 from datetime import timedelta
+import argparse
 fmt = '%Y-%m-%d %H:%M:%S'
+
 
 # ========
 # PATHS
@@ -125,10 +127,30 @@ def get_geolife_data(spatialRes, temporalRes, personsId="All"):
     return loadData(spatialRes, temporalRes, personsId)
 
 
+def geolife_data(spatialRes, temporalRes, personsId="All"):
+    """
+    Loads Geolife data for a given spatiotemporal resolution and a specific set of person IDs.
+    Builds an SQLite table caching the quantisation from the original dataset if it does not exist.
+
+    :param spatialRes: The spatial resolution required for the data.
+    :type spatialRes: int denoting meters
+    :param temporalRes: The temporal resolution required for the data.
+    :type temporalRes: datetime.timedelta
+
+    """
+
+    data, person_ids = loadData(spatialRes, temporalRes, personsId)
+    np.savez_compressed(str(spatialRes) + '|' + str(temporalRes), array1=data)
+    # new_data = np.load('50000000|0:05:00.npz', allow_pickle=True)['array1']
+    # print(1)
+
+
 # ==============================================
 #        Helper methods
 
 # load preprocessing data  from the data base :
+
+
 def loadData(spatialRes, temporalRes, personsId="All", withDates=False):
     print("loading...")
 
@@ -419,18 +441,25 @@ if __name__ == '__main__':
         """
         split = time_str.split(':')
         return timedelta(hours=int(split[0]), minutes=int(split[1]), seconds=int(split[2]))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--s', type=int, default=50000000)
+    parser.add_argument('--t', type=str, default='0:05:00')
+    parser.add_argument('--get_geolife_data', type=bool, default=False)
+    args = parser.parse_args()
+    if args.get_geolife_data:
+        geolife_data(args.s, args.t)
+    else:
+        listSpatialRes = [1000, 5000, 10000, 50000,
+                          100000, 1000000, 3000000, 10000000, 50000000]
+        listRealSpatialRes = [618, 2474, 9896, 39586,
+                              158347, 633388, 2533555, 10134220, 40536880]
 
-    listSpatialRes = [1000, 5000, 10000, 50000,
-                      100000, 1000000, 3000000, 10000000, 50000000]
-    listRealSpatialRes = [618, 2474, 9896, 39586,
-                          158347, 633388, 2533555, 10134220, 40536880]
+        dict_SR = dict(zip(listSpatialRes, listRealSpatialRes))
+        listTemporalRes = ['0:05:00', '0:10:00',
+                           '0:15:00', '0:30:00', '0:45:00', '1:00:00']
 
-    dict_SR = dict(zip(listSpatialRes, listRealSpatialRes))
-    listTemporalRes = ['0:05:00', '0:10:00',
-                       '0:15:00', '0:30:00', '0:45:00', '1:00:00']
-
-    listTemporalRes = [parse_timedelta(temporalRes)
-                       for temporalRes in listTemporalRes]
-    listTemporalResSecond = [temporalRes.total_seconds()
-                             for temporalRes in listTemporalRes]
-    bulk_build_resolution_cache(listSpatialRes, listTemporalRes)
+        listTemporalRes = [parse_timedelta(temporalRes)
+                           for temporalRes in listTemporalRes]
+        listTemporalResSecond = [temporalRes.total_seconds()
+                                 for temporalRes in listTemporalRes]
+        bulk_build_resolution_cache(listSpatialRes, listTemporalRes)
