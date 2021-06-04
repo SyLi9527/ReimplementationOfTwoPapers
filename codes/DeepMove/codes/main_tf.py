@@ -1,7 +1,7 @@
 import numpy as np
 import argparse
 import os
-
+import random
 from tensorflow.python.training.tracking.util import Checkpoint
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' 
 import time
@@ -19,7 +19,8 @@ from json import encoder
 
 from model_tf import TrajPreSimple, TrajPreAttnAvgLongUser, TrajPreLocalAttnLong
 from train_tf import train_model, RnnParameterData, generate_input_history, markov, \
-    generate_input_long_history, generate_input_long_history2
+    generate_input_long_history, generate_input_long_history2, generate_geolife_data, \
+    preprocess_data
 encoder.FLOAT_REPR = lambda o: format(o, '.3f')
 
 def run(args):
@@ -30,19 +31,63 @@ def run(args):
                                   lr_step=args.lr_step, lr_decay=args.lr_decay, L2=args.L2, rnn_type=args.rnn_type,
                                   optim=args.optim, attn_type=args.attn_type,
                                   clip=args.clip, epoch_max=args.epoch_max, history_mode=args.history_mode,
-                                  model_mode=args.model_mode, data_path=args.data_path, save_path=args.save_path)
+                                  model_mode=args.model_mode, data_path=args.data_path, save_path=args.save_path, 
+                                  plot_user_traj=args.plot_user_traj, use_geolife_data=args.use_geolife_data)
 
     argv = {'loc_emb_size': args.loc_emb_size, 'uid_emb_size': args.uid_emb_size, 'voc_emb_size': args.voc_emb_size,
             'tim_emb_size': args.tim_emb_size, 'hidden_size': args.hidden_size,
             'dropout_p': args.dropout_p, 'data_name': args.data_name, 'learning_rate': args.learning_rate,
             'lr_step': args.lr_step, 'lr_decay': args.lr_decay, 'L2': args.L2, 'act_type': 'selu',
             'optim': args.optim, 'attn_type': args.attn_type, 'clip': args.clip, 'rnn_type': args.rnn_type,
-            'epoch_max': args.epoch_max, 'history_mode': args.history_mode, 'model_mode': args.model_mode}
+            'epoch_max': args.epoch_max, 'history_mode': args.history_mode, 'model_mode': args.model_mode, 
+            'plot_user_traj': args.plot_user_traj,'use_geolife_data': args.use_geolife_data}
 
     print('*' * 15 + 'start training' + '*' * 15)
     print('model_mode:{} history_mode:{} users:{}'.format(
         parameters.model_mode, parameters.history_mode, parameters.uid_size))
 
+    candidate = parameters.data_neural.keys()
+    if parameters.use_geolife_data:
+        data_np_raw = np.load(parameters.data_path + '50000000_0_05_00.npz', allow_pickle=True)['array1']
+        whole_candidate = list(range(42))
+        candidate = random.sample(whole_candidate, 2)
+        data_np, parameters.loc_size = preprocess_data(data_np_raw, candidate)
+        data_train, train_idx = generate_geolife_data(data_np,'train', candidate)
+        data_test, test_idx = generate_geolife_data(data_np,'test', candidate)
+        
+        # train_idx = 
+    else:
+        if 'long' in parameters.model_mode:
+            long_history = True
+        else:
+            long_history = False
+
+        if long_history is False:
+            data_train, train_idx = generate_input_history(parameters.data_neural, 'train', mode2=parameters.history_mode,
+                                                        candidate=candidate)
+            data_test, test_idx = generate_input_history(parameters.data_neural, 'test', mode2=parameters.history_mode,
+                                                        candidate=candidate)
+            if -1 < parameters.plot_user_traj < 886:
+                user_trained, user_idx = generate_input_history(parameters.data_neural, 'train', mode2=parameters.history_mode,
+                                                        candidate=[parameters.plot_user_traj])
+        elif long_history is True:
+            if parameters.model_mode == 'simple_long':
+                data_train, train_idx = generate_input_long_history2(
+                    parameters.data_neural, 'train', candidate=candidate)
+                data_test, test_idx = generate_input_long_history2(
+                    parameters.data_neural, 'test', candidate=candidate)
+                if -1 < parameters.plot_user_traj < 886:
+                    user_trained, user_idx = generate_input_long_history2(parameters.data_neural, 'train',
+                                                            candidate=[parameters.plot_user_traj])
+            else:
+                data_train, train_idx = generate_input_long_history(
+                    parameters.data_neural, 'train', candidate=candidate)
+                data_test, test_idx = generate_input_long_history(
+                    parameters.data_neural, 'test', candidate=candidate)
+                if -1 < parameters.plot_user_traj < 886:
+                    user_trained, user_idx = generate_input_long_history(parameters.data_neural, 'train',
+                                                            candidate=[parameters.plot_user_traj])
+        
     if parameters.model_mode in ['simple', 'simple_long']:
         model = TrajPreSimple(parameters=parameters)
     elif parameters.model_mode == 'attn_avg_long_user':
@@ -64,33 +109,11 @@ def run(args):
     ])
     reduce_lr = ReduceLROnPlateau(monitor = 'sparse_categorical_crossentropy', factor=parameters.lr_decay,
                               patience=parameters.lr_step, min_lr=parameters.min_lr)
-    candidate = parameters.data_neural.keys()
+    
     avg_acc_markov, users_acc_markov = markov(parameters, candidate)
     metrics = {'train_loss': [], 'valid_loss': [],
                'accuracy': [], 'valid_acc': {}, 'lr': []}
     metrics['markov_acc'] = users_acc_markov
-
-    if 'long' in parameters.model_mode:
-        long_history = True
-    else:
-        long_history = False
-
-    if long_history is False:
-        data_train, train_idx = generate_input_history(parameters.data_neural, 'train', mode2=parameters.history_mode,
-                                                       candidate=candidate)
-        data_test, test_idx = generate_input_history(parameters.data_neural, 'test', mode2=parameters.history_mode,
-                                                     candidate=candidate)
-    elif long_history is True:
-        if parameters.model_mode == 'simple_long':
-            data_train, train_idx = generate_input_long_history2(
-                parameters.data_neural, 'train', candidate=candidate)
-            data_test, test_idx = generate_input_long_history2(
-                parameters.data_neural, 'test', candidate=candidate)
-        else:
-            data_train, train_idx = generate_input_long_history(
-                parameters.data_neural, 'train', candidate=candidate)
-            data_test, test_idx = generate_input_long_history(
-                parameters.data_neural, 'test', candidate=candidate)
 
     print('users:{} markov:{} train:{} test:{}'.format(len(candidate), avg_acc_markov,
                                                        len([
@@ -103,7 +126,7 @@ def run(args):
     checkpoint_dir = os.path.dirname(checkpoint_path)
     temp_model_path = "training/" + parameters.model_mode + "/tp-{epoch:04d}"
     # continue to train the model
-    #model.load_weights(temp_model_path.format(epoch=7)).expect_partial()
+    # model.load_weights(temp_model_path.format(epoch=7)).expect_partial()
     model.compile(
             optimizer = Adam(
                 learning_rate=parameters.lr,
@@ -122,14 +145,16 @@ def run(args):
                 model.load_weights(temp_model_path.format(epoch=np.argmax(metrics['accuracy'])))
                 
             
-            model, history = train_model(model, data_train, train_idx, parameters.model_mode, reduce_lr, Train=True)
+            model, history = train_model(model, data_train, train_idx, parameters.model_mode, reduce_lr, -1, parameters.use_geolife_data, Train=True)
             model.save_weights(temp_model_path.format(epoch=epoch))
 
             # loss', 'sparse_categorical_crossentropy', 'sparse_categorical_accuracy', 'lr
            
             lr_last, lr = lr, (history['lr'][0])
             if not (epoch % show_per_epoch):
-                result = train_model(model, data_test, test_idx, parameters.model_mode, reduce_lr, Train=False)
+                if parameters.use_geolife_data:
+                    train_model(model, user_trained, user_idx, parameters.model_mode, reduce_lr, parameters.plot_user_traj, parameters.use_geolife_data, Train=False)
+                result = train_model(model, data_test, test_idx, parameters.model_mode, reduce_lr, -1, parameters.use_geolife_data, Train=False)
         print(result)
         metrics['lr'].append(lr)
         metrics['train_loss'].extend(history['sparse_categorical_crossentropy'])
@@ -188,10 +213,12 @@ if __name__ == '__main__':
                         choices=['general', 'concat', 'dot'])
     parser.add_argument('--data_path', type=str, default='../data/')
     parser.add_argument('--save_path', type=str, default='../results/')
-    parser.add_argument('--model_mode', type=str, default='attn_local_long',
+    parser.add_argument('--model_mode', type=str, default='simple',
                         choices=['simple', 'simple_long', 'attn_avg_long_user', 'attn_local_long'])
     parser.add_argument('--pretrain', type=int, default=0)
     parser.add_argument('--min-lr', type=float, default=1e-5)
+    parser.add_argument('--plot_user_traj', type=int, default=4)
+    parser.add_argument('--use_geolife_data', type=bool, default=True)
     args = parser.parse_args()
     if args.pretrain == 1:
         args = load_pretrained_model(args)
