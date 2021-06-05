@@ -80,7 +80,7 @@
 
     Then, I applied two datasets from DataGeolife , namely, spatial resolution 40.54km^2 with temporal resolution 0:05:00 (dataset1) and spatial resolution 618m^2 with temporal resolution 1:00:00 (dataset2) to DeepMove algorithm. Then I got the following table.
 
-    ||dataset1|dataset2|dataset3|dataset4
+    ||dataset1|dataset2|
     |:---:|:---:|:---:|
     |possibility using DL method|0.9765|0.6201|
     |possibility using RL method|0.9688|0.2726|
