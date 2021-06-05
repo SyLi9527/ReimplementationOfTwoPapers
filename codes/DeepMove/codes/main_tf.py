@@ -48,9 +48,9 @@ def run(args):
 
     candidate = parameters.data_neural.keys()
     if parameters.use_geolife_data:
-        data_np_raw = np.load(parameters.data_path + '50000000_0_05_00.npz', allow_pickle=True)['array1']
+        data_np_raw = np.load(parameters.data_path + '1000_0_05_00.npz', allow_pickle=True)['array1']
         whole_candidate = list(range(42))
-        candidate = random.sample(whole_candidate, 2)
+        candidate = random.sample(whole_candidate, 42)
         data_np, parameters.loc_size = preprocess_data(data_np_raw, candidate)
         data_train, train_idx = generate_geolife_data(data_np,'train', candidate)
         data_test, test_idx = generate_geolife_data(data_np,'test', candidate)
@@ -126,7 +126,7 @@ def run(args):
     checkpoint_dir = os.path.dirname(checkpoint_path)
     temp_model_path = "training/" + parameters.model_mode + "/tp-{epoch:04d}"
     # continue to train the model
-    # model.load_weights(temp_model_path.format(epoch=7)).expect_partial()
+    # model.load_weights(temp_model_path.format(epoch=47)).expect_partial()
     model.compile(
             optimizer = Adam(
                 learning_rate=parameters.lr,
@@ -152,7 +152,7 @@ def run(args):
            
             lr_last, lr = lr, (history['lr'][0])
             if not (epoch % show_per_epoch):
-                if parameters.use_geolife_data:
+                if not parameters.use_geolife_data and parameters.plot_user_traj != -1:
                     train_model(model, user_trained, user_idx, parameters.model_mode, reduce_lr, parameters.plot_user_traj, parameters.use_geolife_data, Train=False)
                 result = train_model(model, data_test, test_idx, parameters.model_mode, reduce_lr, -1, parameters.use_geolife_data, Train=False)
         print(result)
@@ -170,11 +170,12 @@ def run(args):
         metrics_view[key] = metrics[key]
     json.dump({'args': eval(str(argv)), 'metrics': eval(str(metrics_view))}, fp=open(
         args.save_path + parameters.model_mode + save_name + '.txt', 'w'), indent=4)
-
-    for rt, dirs, files in os.walk(checkpoint_dir):
-        for name in files:
-            remove_path = os.path.join(rt, name)
-            os.remove(remove_path)
+    # model.save_weights(temp_model_path.format(epoch=np.argmax(metrics['accuracy'])))
+    # for rt, dirs, files in os.walk(checkpoint_dir):
+    #     for name in files:
+    #         remove_path = os.path.join(rt, name)
+    #         os.remove(remove_path)
+    # model.save_weights(temp_model_path.format(epoch=np.argmax(metrics['accuracy'])))
 
 
     
@@ -196,7 +197,7 @@ if __name__ == '__main__':
     parser.add_argument('--hidden_size', type=int, default=300)
     parser.add_argument('--dropout_p', type=float, default=0.6)
     parser.add_argument('--data_name', type=str, default='foursquare')
-    parser.add_argument('--learning_rate', type=float, default=0.0007)
+    parser.add_argument('--learning_rate', type=float, default=0.001)
     parser.add_argument('--lr_step', type=int, default=1)
     parser.add_argument('--lr_decay', type=float, default=0.1)
     parser.add_argument('--optim', type=str, default='Adam',
@@ -204,7 +205,7 @@ if __name__ == '__main__':
     parser.add_argument('--L2', type=float, default=1 *
                         1e-5, help=" weight decay (L2 penalty)")
     parser.add_argument('--clip', type=float, default=2)
-    parser.add_argument('--epoch_max', type=int, default=10)
+    parser.add_argument('--epoch_max', type=int, default=50)
     parser.add_argument('--history_mode', type=str,
                         default='avg', choices=['max', 'avg', 'whole'])
     parser.add_argument('--rnn_type', type=str,

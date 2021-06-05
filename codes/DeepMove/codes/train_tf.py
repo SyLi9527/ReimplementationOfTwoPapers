@@ -130,19 +130,24 @@ def preprocess_data(data_raw, candidate):
 def generate_geolife_data(data, mode, candidate=None):
     data_train = {}
     train_idx = {}
-    trace = {}
+    
     if candidate is None:
         candidate = list(range(data.shape[0]))
+
+    sessions = []
     for u in candidate:
+        trace = {}
         session = data[u][:int(0.7 * len(data[u]))] if mode == 'train' else data[u][int(0.7 * len(data[u])):]
+        # sessions.append(session)
         idx = list(range(len(session)))
-        train_id = idx[: int(0.7 * len(idx))] if mode == 'train' else idx[int(0.7 * len(idx)):]
+        # train_id = idx[: int(0.7 * len(idx))] if mode == 'train' else idx[int(0.7 * len(idx)):]
+        train_id = [0, 0] if mode == 'train' else [0]
         data_train[u] = {}
         loc_np = np.reshape(
                 np.array(session[:-1]), (-1, 1))
                
         tim_np = np.reshape(   
-                np.array([int(i/6)%24 for i in range(len(session[:-1]))]), (-1, 1))
+                np.array([int(i * 2)%48 for i in range(len(session[:-1]))]), (-1, 1))
         target = np.reshape(
                 np.array(session[1:]), (-1, 1))
         trace['loc'] = loc_np
@@ -150,6 +155,7 @@ def generate_geolife_data(data, mode, candidate=None):
         trace['tim'] =  tim_np
         data_train[u][0] = trace
         train_idx[u] = train_id
+    # print(train_idx[])
     return data_train, train_idx
 
 def generate_input_history(data_neural, mode, mode2=None, candidate=None):
@@ -461,8 +467,8 @@ def run_simple_mod(data, run_idx, mode, use_geolife_data, mode2=None):
     target_len = []
     for c in range(queue_len):
         u, i = run_queue.popleft()
-        if use_geolife_data:
-            i = 0
+        # if use_geolife_data:
+        #     i = 0
         if u not in users_acc:
             users_acc[u] = [0, 0]
         users.append(u)
@@ -652,6 +658,7 @@ def train_model(model, data, idx, model_mode, reduce_lr, user, use_geolife_data,
             data_generator = generator_attn_long(args[2:])
         else:
             data_generator = generator_simple(args[2:])
+        
 
         history = model.fit(data_generator, epochs=1, callbacks=[reduce_lr])
         return model, history.history
@@ -672,7 +679,7 @@ def train_model(model, data, idx, model_mode, reduce_lr, user, use_geolife_data,
         len_target = len(args[-1])
         match = total = 0
 
-        if -1 < user < 886:
+        if -1 < user < 886 and not use_geolife_data:
         # plot trajectory
             out = model.predict(data_generator)
             out = tf.nn.softmax(out, axis = 1)
@@ -693,6 +700,7 @@ def train_model(model, data, idx, model_mode, reduce_lr, user, use_geolife_data,
             # plt.show()
         else:
             for i in range(len_target):
+        
                 # result = model.test_on_batch(next(data_generator), next(data_target))
                 out = model.predict_on_batch([item[i].reshape(1, -1) for item in args[2: -1]])
                 out = tf.nn.softmax(out, axis = 1)
@@ -706,7 +714,9 @@ def train_model(model, data, idx, model_mode, reduce_lr, user, use_geolife_data,
                 #     ax.scatter(np.arange(), y_list, c='blue', s=20, alpha=0.5)
                 #     plt.savefig("attn_local_long")
                 per_loss = scce(args[-1][i], out).numpy()
-                match = np.sum(args[-1][i] - np.argmax(out, axis = 1) == 0)
+                # print(args[-1][i] - np.argmax(out, axis = 1) == 0)
+                # match = np.sum(args[-1][i] == np.argmax(out, axis = 1))
+                match = np.sum(args[-1][i] == np.reshape(np.argmax(out, axis = 1), (-1, 1)))
                 # total += args[-1][i].shape[0]
                 users_acc[users[i]][0] += lens_targets[i]
                 users_acc[users[i]][1] += match
