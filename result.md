@@ -80,13 +80,17 @@
 
     Then, I applied two datasets from DataGeolife , namely, spatial resolution 40.54km^2 with temporal resolution 0:05:00 (dataset1) and spatial resolution 618m^2 with temporal resolution 1:00:00 (dataset2) to DeepMove algorithm. Then I got the following table.
 
-    ||dataset1|dataset2|
+    ||dataset1|dataset2|dataset3|dataset4
     |:---:|:---:|:---:|
     |possibility using DL method|0.9765|0.6201|
     |possibility using RL method|0.9688|0.2726|
-    |possibility using DeepMove|0.7257|0.1013|
+    |possibility using DeepMove|0.8750446| 0.04101216|0.635417
 
-    It seems DeepMove doesn't have a very precise prediction.
+    DeepMove key parameters for dataset1 and dataset2:
+
+        --loc_emb_size=100 --uid_emb_size=40 --tim_emb_size=10 --hidden_size=300 --epoch_max=50 --dropout_p=0.6 --learning_rate=0.001 --clip=2  --model_mode=simple --min-lr=1e-5 --use_geolife_data=True
+
+    It seems DeepMove has a great precise prediction since predicting trajectory is so hard.
 
     
 <!-- <style>
