@@ -84,7 +84,8 @@
     |:---:|:---:|:---:|
     |possibility using DL method|0.9765|0.6201|
     |possibility using RL method|0.9688|0.2726|
-    |possibility using DeepMove|0.8750446| 0.04101216|0.635417
+    |possibility using DeepMove|0.8750446| 0.04101216|
+   
 
     DeepMove key parameters for dataset1 and dataset2:
 
