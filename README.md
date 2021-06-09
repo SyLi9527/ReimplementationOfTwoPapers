@@ -32,7 +32,7 @@ The codes contain four network model (simple, simple_long, attn_avg_long_user, a
         - history_mode: avg, avg, whole
 - Plot user's predicted and real trajectory:
 
-    `python3 main_tf.py --model_mode=xxx --plot_user_traj=True`
+    `python3 main_tf.py --model_mode=xxx --plot_user_traj=user` # user is valid from 0 to 885
 
     Then in each epoch, the user's trajtectory is saved as a png in /codes dir. The png would update automatically after each epoch.
 
