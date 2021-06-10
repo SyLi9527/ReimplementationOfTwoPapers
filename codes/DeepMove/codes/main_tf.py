@@ -219,7 +219,7 @@ if __name__ == '__main__':
     parser.add_argument('--pretrain', type=int, default=0)
     parser.add_argument('--min-lr', type=float, default=1e-5)
     parser.add_argument('--plot_user_traj', type=int, default=4)
-    parser.add_argument('--use_geolife_data', type=bool, default=True)
+    parser.add_argument('--use_geolife_data', type=bool, default=False)
     args = parser.parse_args()
     if args.pretrain == 1:
         args = load_pretrained_model(args)
