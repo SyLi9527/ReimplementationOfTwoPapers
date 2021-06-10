@@ -40,7 +40,7 @@ The codes contain four network model (simple, simple_long, attn_avg_long_user, a
 
     `python3 main_tf.py --use_geolife_data=True`
 
-    First, we need to get the dataset. You can find the detail from last item in Usage of MobilityPredictabilityUpperBounds. Then copy .npz file to /data dir. Afterwards, specify the filename in line52 of main_tf.py. Finally, run this command to get cross dataset accuracy.
+    First, we need to get the dataset. You can find the detail from last item in Usage of MobilityPredictabilityUpperBounds. Then copy .npz file to /data dir. Afterwards, specify the filename in line51 of main_tf.py. Finally, run this command to get cross dataset accuracy.
 
 # MobilityPredictabilityUpperBounds
 ## Requirements
